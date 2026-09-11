@@ -1,7 +1,7 @@
-﻿name: diligent_life
-description: A calm, private daily weight and exercise journal.
+name: diligent_life
+description: A calm personal life tracker and movement portfolio.
 publish_to: none
-version: 0.1.0+1
+version: 0.3.1+4
 environment:
   sdk: ^3.13.2
 dependencies:
@@ -16,6 +16,10 @@ dependencies:
   flutter_timezone: ^5.0.1
   timezone: ^0.11.0
   fl_chart: ^1.2.0
+  geolocator: 14.0.3
+  share_plus: 13.3.0
+  flutter_map: ^8.3.2
+  latlong2: ^0.9.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

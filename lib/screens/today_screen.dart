@@ -11,9 +11,11 @@ class TodayScreen extends StatefulWidget {
     super.key,
     required this.repository,
     required this.onSaved,
+    this.onDirtyChanged,
   });
   final RecordRepository repository;
   final VoidCallback onSaved;
+  final ValueChanged<bool>? onDirtyChanged;
   @override
   State<TodayScreen> createState() => _TodayScreenState();
 }
@@ -33,6 +35,36 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
   double? _fallback;
   bool _loading = true, _saving = false, _exists = false;
   String? _error;
+  String _savedInput = '';
+  String get _input =>
+      '${_weight.text}|${_minutes.text}|${_distance.text}|${_exercise.name}';
+  bool get _dirty => !_loading && _input != _savedInput;
+  void _changed() {
+    setState(() {});
+    widget.onDirtyChanged?.call(_dirty);
+  }
+
+  Future<bool> _discard() async {
+    if (!_dirty) return true;
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('저장하지 않은 입력이 있어요.'),
+            content: const Text('입력을 버리고 날짜를 변경할까요?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('계속 입력'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('날짜 변경'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
 
   @override
   void initState() {
@@ -57,7 +89,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final now = dayOnly(DateTime.now());
     if (state == AppLifecycleState.resumed && now != _lastToday && !_saving) {
-      if (_date == _lastToday) {
+      if (_date == _lastToday && !_dirty) {
         _date = now;
         _load();
       }
@@ -87,7 +119,9 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
         _fallback = fallback;
         _exists = record != null;
         _exercise = record?.exerciseType ?? ExerciseType.lightWalk;
+        _savedInput = _input;
       });
+      widget.onDirtyChanged?.call(false);
     } catch (_) {
       if (mounted && generation == _loadGeneration) {
         setState(() => _error = '기록을 불러오지 못했어요. 다시 시도해 주세요.');
@@ -158,6 +192,8 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       FocusScope.of(context).unfocus();
       setState(() => _exists = true);
+      _savedInput = _input;
+      widget.onDirtyChanged?.call(false);
       widget.onSaved();
       _message('기록을 저장했어요.');
     } catch (_) {
@@ -231,7 +267,11 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
                               firstDate: DateTime(2000),
                               lastDate: DateTime.now(),
                             );
-                            if (picked != null && mounted) {
+                            if (picked != null &&
+                                picked != _date &&
+                                mounted &&
+                                await _discard()) {
+                              if (!mounted) return;
                               _date = picked;
                               await _load();
                             }
@@ -259,7 +299,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
                     helperMaxLines: 3,
                     errorMaxLines: 3,
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => _changed(),
                   validator: (value) {
                     if (value!.trim().isEmpty) return null;
                     final n = _number(value);
@@ -283,6 +323,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
                               ? null
                               : (_) {
                                   setState(() => _exercise = type);
+                                  widget.onDirtyChanged?.call(_dirty);
                                   _minutesFocus.requestFocus();
                                 },
                         ),
@@ -304,7 +345,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
                     hintText: '0',
                     errorMaxLines: 3,
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => _changed(),
                   validator: (value) {
                     if (value!.trim().isEmpty) return null;
                     final n = int.tryParse(value.trim());
@@ -317,6 +358,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
                 TextFormField(
                   key: const ValueKey('distance'),
                   controller: _distance,
+                  onChanged: (_) => _changed(),
                   focusNode: _distanceFocus,
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _distanceFocus.unfocus(),

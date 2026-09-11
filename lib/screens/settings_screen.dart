@@ -55,17 +55,21 @@ class SettingsScreen extends StatelessWidget {
         const SizedBox(height: 24),
         Text('Diligent Life', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        const Text('버전 0.1.0'),
+        const Text('버전 0.3.1'),
         const SizedBox(height: 16),
         const Text(
           '가볍게 기록하고, 차분하게 변화를 확인하세요.\n\n광고와 로그인 없이, 기록은 이 기기에 저장돼요. 앱을 삭제하면 기록도 삭제돼요.',
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          '운동과 몸무게의 변화를 나만의 포트폴리오로 쌓아요. 지도는 OpenStreetMap에서 불러오며, 표시하는 지도 영역과 IP 주소가 지도 제공자에게 전달돼요. 운동 원본 기록을 업로드하지는 않아요.',
         ),
         const SizedBox(height: 12),
         TextButton(
           onPressed: () => showLicensePage(
             context: context,
             applicationName: 'Diligent Life',
-            applicationVersion: '0.1.0',
+            applicationVersion: '0.3.1',
           ),
           child: const Text('오픈소스 라이선스'),
         ),
