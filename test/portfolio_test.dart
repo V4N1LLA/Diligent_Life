@@ -1,4 +1,5 @@
 import 'package:diligent_life/data/exercise_repository.dart';
+import 'package:diligent_life/utils/portfolio_analysis.dart';
 import 'package:diligent_life/data/record_repository.dart';
 import 'package:diligent_life/data/portfolio_repository.dart';
 import 'package:diligent_life/models/exercise_session.dart';
@@ -35,6 +36,9 @@ class PortfolioExercises extends MemoryExerciseRepository {
 
   @override
   Future<List<RoutePoint>> analysisRoute(int id) async => [];
+  @override
+  Future<PortfolioAnalysis> portfolioAnalysis(ExerciseSession session) async =>
+      const PortfolioAnalysis([], null);
 }
 
 void main() {
@@ -75,6 +79,48 @@ void main() {
       portfolio = PortfolioRepository(records, exercises);
     });
     tearDown(() => db.close());
+
+    test('calendar month/year navigation, longest time, average record and recent order', () async {
+      await session(DateTime(2025, 12, 31, 23, 59), 500);
+      final august = await session(DateTime(2026, 8, 31, 23, 59), 900);
+      final september = await session(DateTime(2026, 9, 1), 2000);
+      await records.save(record('2026-08-01', weight: 71));
+      await records.save(record('2026-08-31', weight: 69));
+      await records.save(record('2026-09-01', weight: 68));
+      await db.update(
+        'exercise_sessions',
+        {'elapsedSeconds': 1200},
+        where: 'id = ?',
+        whereArgs: [august.id],
+      );
+      final previous = await portfolio.load(
+        PortfolioPeriod.month,
+        now,
+        anchor: DateTime(2026, 8),
+      );
+      expect(previous.summary.count, 1);
+      expect(previous.weightChange, -2);
+      expect(previous.periodEnd, DateTime(2026, 8, 31));
+      expect(previous.longestTime!.id, august.id);
+      final year = await portfolio.load(PortfolioPeriod.year, now);
+      expect(year.bestAverage!.id, september.id);
+      expect(year.longestTime!.id, august.id);
+      expect(year.recent.map((s) => s.id), [september.id, august.id]);
+      final old = await portfolio.load(
+        PortfolioPeriod.year,
+        now,
+        anchor: DateTime(2025),
+      );
+      expect(old.summary.count, 1);
+      expect(old.months, hasLength(12));
+      final empty = await portfolio.load(
+        PortfolioPeriod.month,
+        now,
+        anchor: DateTime(2026, 2),
+      );
+      expect(empty.summary.count, 0);
+      expect(empty.periodEnd, DateTime(2026, 2, 28));
+    });
 
     test('local calendar boundaries, unknown kcal, zero months, and no manual double counting', () async {
       await session(DateTime(2025, 12, 31, 23, 59, 59), 500);
@@ -235,17 +281,20 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(find.text('1회'), 200);
         expect(find.text('1회'), findsOneWidget);
         expect(find.text('1.50 km'), findsOneWidget);
         expect(tester.takeException(), isNull);
         await tester.ensureVisible(find.text('전체'));
         await tester.tap(find.text('전체'));
         await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(find.text('2회'), 200);
         expect(find.text('2회'), findsOneWidget);
         expect(find.text('2.00 km'), findsOneWidget);
-        await tester.ensureVisible(find.text('올해'));
-        await tester.tap(find.text('올해'));
+        await tester.ensureVisible(find.text('연간'));
+        await tester.tap(find.text('연간'));
         await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(find.text('1회'), 200);
         expect(find.text('1회'), findsOneWidget);
         await tester.scrollUntilVisible(find.text('가장 멀리 간 운동'), 350);
         expect(tester.takeException(), isNull);
@@ -253,11 +302,13 @@ void main() {
         await tester.ensureVisible(find.text('최근 30일'));
         await tester.tap(find.text('최근 30일'));
         await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(find.text('포트폴리오를 불러오지 못했어요.'), 200);
         expect(find.text('포트폴리오를 불러오지 못했어요.'), findsOneWidget);
         exercises.fail = false;
         await tester.ensureVisible(find.text('다시 시도'));
         await tester.tap(find.text('다시 시도'));
         await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(find.text('1회'), 200);
         expect(find.text('1회'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },

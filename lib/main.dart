@@ -7,6 +7,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/record_repository.dart';
+import 'data/backup_repository.dart';
+import 'screens/backup_screen.dart';
 import 'data/exercise_repository.dart';
 import 'services/exercise_recorder.dart';
 import 'screens/exercise_screen.dart';
@@ -127,7 +129,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
-  int _index = 0, _revision = 0;
+  int _index = 0, _revision = 0, _importRevision = 0;
   bool _dirty = false, _leaving = false;
   bool _exerciseActive = false;
   @override
@@ -266,6 +268,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               index: _index,
               children: [
                 TodayScreen(
+                  key: ValueKey(_importRevision),
                   repository: widget.repository,
                   onSaved: () => setState(() => _revision++),
                   onDirtyChanged: (dirty) {
@@ -279,7 +282,29 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   revision: _revision,
                   exercises: widget.recorder?.repository,
                 ),
-                SettingsScreen(reminders: widget.reminders),
+                SettingsScreen(
+                  reminders: widget.reminders,
+                  onBackup: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => BackupScreen(
+                        repository: BackupRepository(
+                          widget.repository.database,
+                        ),
+                        canImport: () =>
+                            !_dirty && !(widget.recorder?.active ?? false),
+                        onImported: () async {
+                          await widget.recorder?.restore();
+                          if (mounted) {
+                            setState(() {
+                              _revision++;
+                              _importRevision++;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

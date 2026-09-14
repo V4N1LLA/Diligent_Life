@@ -10,6 +10,8 @@ import '../utils/dates.dart';
 import '../utils/gps.dart';
 import '../widgets/exercise_route.dart';
 import 'exercise_screen.dart';
+import 'all_time_map_screen.dart';
+import 'portfolio_share_screen.dart';
 
 class TrendsScreen extends StatefulWidget {
   const TrendsScreen({
@@ -26,7 +28,8 @@ class TrendsScreen extends StatefulWidget {
 }
 
 class _TrendsScreenState extends State<TrendsScreen> {
-  PortfolioPeriod _period = PortfolioPeriod.recent;
+  PortfolioPeriod _period = PortfolioPeriod.month;
+  DateTime _anchor = DateTime.now();
   late PortfolioRepository _repository;
   late Future<PortfolioData> _data;
   @override
@@ -49,7 +52,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   }
 
   void _reload() {
-    _data = _repository.load(_period, DateTime.now());
+    _data = _repository.load(_period, DateTime.now(), anchor: _anchor);
     // A synchronous storage failure may arrive before the next frame attaches
     // FutureBuilder. Handle it now; FutureBuilder still displays its error.
     _data.ignore();
@@ -70,6 +73,26 @@ class _TrendsScreenState extends State<TrendsScreen> {
     if (mounted && deleted == true) setState(_reload);
   }
 
+  String get _periodTitle => _period == PortfolioPeriod.month
+      ? '${_anchor.year}년 ${_anchor.month}월'
+      : '${_anchor.year}년';
+  bool get _canNext {
+    final now = DateTime.now();
+    return _period == PortfolioPeriod.month
+        ? DateTime(
+            _anchor.year,
+            _anchor.month,
+          ).isBefore(DateTime(now.year, now.month))
+        : _anchor.year < now.year;
+  }
+
+  void _movePeriod(int delta) => setState(() {
+    _anchor = _period == PortfolioPeriod.month
+        ? DateTime(_anchor.year, _anchor.month + delta)
+        : DateTime(_anchor.year + delta, _anchor.month);
+    _reload();
+  });
+
   @override
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
@@ -88,11 +111,38 @@ class _TrendsScreenState extends State<TrendsScreen> {
               selected: _period == period,
               onSelected: (_) => setState(() {
                 _period = period;
+                _anchor = DateTime.now();
                 _reload();
               }),
             ),
         ],
       ),
+      if (_period == PortfolioPeriod.month || _period == PortfolioPeriod.year)
+        Row(
+          children: [
+            IconButton(
+              tooltip: '이전 기간',
+              onPressed: _anchor.year <= 1900 ? null : () => _movePeriod(-1),
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Expanded(child: Text(_periodTitle, textAlign: TextAlign.center)),
+            IconButton(
+              tooltip: '다음 기간',
+              onPressed: _canNext ? () => _movePeriod(1) : null,
+              icon: const Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
+      if (widget.exercises != null)
+        TextButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => AllTimeMapScreen(repository: widget.exercises!),
+            ),
+          ),
+          icon: const Icon(Icons.map_outlined),
+          label: const Text('All-time Map · 지나온 모든 길'),
+        ),
       const SizedBox(height: 28),
       FutureBuilder<PortfolioData>(
         future: _data,
@@ -164,6 +214,23 @@ class _TrendsScreenState extends State<TrendsScreen> {
                   padding: EdgeInsets.only(top: 12),
                   child: Text('아직 이 기간의 기록이 없어요.'),
                 ),
+              if (_period == PortfolioPeriod.month ||
+                  _period == PortfolioPeriod.year)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PortfolioShareScreen(
+                          data: data,
+                          title: _periodTitle,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.ios_share),
+                    label: const Text('이 기간 이미지로 공유'),
+                  ),
+                ),
               const _Section('몸무게의 변화'),
               if (change != null)
                 Padding(
@@ -202,6 +269,26 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 )
               else
                 const Text('운동을 마치면 나만의 대표 기록이 여기에 남아요.'),
+              if (data.longestTime case final session?)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('가장 오래 움직인 운동'),
+                  subtitle: Text(
+                    '${elapsedLabel(session.elapsedSeconds)} · ${dateKey(session.startedAt.toLocal())}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _open(session),
+                ),
+              if (data.bestAverage case final session?)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('최고 평균속도 · 페이스'),
+                  subtitle: Text(
+                    '${averageKmh(session)!.toStringAsFixed(1)} km/h · ${paceLabel(session.paceSeconds)}\n${dateKey(session.startedAt.toLocal())} · ${session.type.label}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _open(session),
+                ),
               if (data.fastest case final speed?)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -221,6 +308,20 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 '속도는 최소 5초 구간 평균으로 비교하고, GPS 공백과 비현실적 속도는 제외해요.',
                 style: TextStyle(fontSize: 12),
               ),
+              const _Section('최근 운동'),
+              if (data.recent.isEmpty) const Text('이 기간에 완료한 운동이 아직 없어요.'),
+              for (final session in data.recent)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    '${dateKey(session.startedAt.toLocal())} · ${session.type.label}',
+                  ),
+                  subtitle: Text(
+                    '${(session.distanceMeters / 1000).toStringAsFixed(2)} km · ${elapsedLabel(session.elapsedSeconds)}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _open(session),
+                ),
               const _Section('대표 경로'),
               if (data.representative case final session?) ...[
                 Text(
@@ -230,6 +331,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 ExerciseRoute(
                   key: ValueKey(session.id),
                   points: data.route,
+                  overview: true,
                   height: 300,
                 ),
                 TextButton(

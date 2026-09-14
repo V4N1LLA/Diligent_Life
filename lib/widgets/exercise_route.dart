@@ -23,6 +23,7 @@ class ExerciseRoute extends StatefulWidget {
     this.currentPosition,
     this.selectedPoint,
     this.live = false,
+    this.overview = false,
     this.interactive = true,
     this.private = false,
     this.height = 320,
@@ -31,7 +32,7 @@ class ExerciseRoute extends StatefulWidget {
   final List<RoutePoint> points;
   final RoutePoint? currentPosition;
   final RoutePoint? selectedPoint;
-  final bool live, interactive, private;
+  final bool live, interactive, private, overview;
   final double height;
   // Injectable for deterministic, offline map tests.
   final TileProvider? tileProvider;
@@ -57,7 +58,7 @@ class ExerciseRouteState extends State<ExerciseRoute> {
   @override
   void initState() {
     super.initState();
-    _speeds = speedSections(widget.points);
+    _speeds = widget.overview ? [] : speedSections(widget.points);
   }
 
   @override
@@ -79,7 +80,7 @@ class ExerciseRouteState extends State<ExerciseRoute> {
     if (oldWidget.points.length != widget.points.length ||
         oldWidget.points.firstOrNull != widget.points.firstOrNull ||
         oldWidget.points.lastOrNull != widget.points.lastOrNull) {
-      _speeds = speedSections(widget.points);
+      _speeds = widget.overview ? [] : speedSections(widget.points);
       if (!widget.live) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _fit();
@@ -289,14 +290,16 @@ class ExerciseRouteState extends State<ExerciseRoute> {
                             const Color(0xff8560aa),
                             '선택한 속도 구간',
                           ),
-                        if (points.isNotEmpty)
+                        if (points.isNotEmpty && !widget.overview)
                           marker(
                             points.first,
                             Icons.play_arrow,
                             const Color(0xff527d6b),
                             widget.private ? '공개 경로 시작' : '시작',
                           ),
-                        if (!widget.live && points.length > 1)
+                        if (!widget.live &&
+                            !widget.overview &&
+                            points.length > 1)
                           marker(
                             points.last,
                             Icons.flag,

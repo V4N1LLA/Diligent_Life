@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../services/reminder_service.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.reminders});
+  const SettingsScreen({super.key, required this.reminders, this.onBackup});
   final ReminderService reminders;
+  final VoidCallback? onBackup;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: reminders,
@@ -53,9 +54,18 @@ class SettingsScreen extends StatelessWidget {
         const SizedBox(height: 32),
         const Divider(),
         const SizedBox(height: 24),
+        if (onBackup != null)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('기록 백업과 복원'),
+            subtitle: const Text('전체 원본을 로컬 파일로 보관하기'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: onBackup,
+          ),
+        const SizedBox(height: 16),
         Text('Diligent Life', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        const Text('버전 0.4.0'),
+        const Text('버전 0.5.0'),
         const SizedBox(height: 16),
         const Text(
           '가볍게 기록하고, 차분하게 변화를 확인하세요.\n\n광고와 로그인 없이, 기록은 이 기기에 저장돼요. 앱을 삭제하면 기록도 삭제돼요.',
@@ -69,7 +79,7 @@ class SettingsScreen extends StatelessWidget {
           onPressed: () => showLicensePage(
             context: context,
             applicationName: 'Diligent Life',
-            applicationVersion: '0.4.0',
+            applicationVersion: '0.5.0',
           ),
           child: const Text('오픈소스 라이선스'),
         ),

@@ -7,7 +7,8 @@ import 'record_repository.dart';
 
 enum PortfolioPeriod {
   recent('최근 30일'),
-  year('올해'),
+  month('월간'),
+  year('연간'),
   all('전체');
 
   const PortfolioPeriod(this.label);
@@ -16,6 +17,7 @@ enum PortfolioPeriod {
     recent => DateTime(today.year, today.month, today.day - 29),
     year => DateTime(today.year),
     all => null,
+    month => DateTime(today.year, today.month),
   };
 }
 
@@ -31,6 +33,11 @@ class PortfolioData {
     required this.weights,
     required this.months,
     this.longest,
+    this.longestTime,
+    this.bestAverage,
+    this.recent = const [],
+    this.periodStart,
+    this.periodEnd,
     this.fastestSession,
     this.fastest,
     this.representative,
@@ -39,7 +46,13 @@ class PortfolioData {
   final MovementSummary summary;
   final List<DailyRecord> weights;
   final List<PortfolioMonth> months;
-  final ExerciseSession? longest, fastestSession, representative;
+  final ExerciseSession? longest,
+      longestTime,
+      bestAverage,
+      fastestSession,
+      representative;
+  final List<ExerciseSession> recent;
+  final DateTime? periodStart, periodEnd;
   final SpeedSection? fastest;
   final List<RoutePoint> route;
   double? get weightChange => weights.length < 2
@@ -51,18 +64,29 @@ class PortfolioRepository {
   PortfolioRepository(this.records, this.exercises);
   final RecordRepository records;
   final ExerciseRepository? exercises;
-  // Completed sessions are immutable. Keep one small section per session,
-  // not all raw points; deleted IDs are pruned on the next period load.
-  final _fastest = <int, SpeedSection?>{};
 
-  Future<PortfolioData> load(PortfolioPeriod period, DateTime now) async {
+  Future<PortfolioData> load(
+    PortfolioPeriod period,
+    DateTime now, {
+    DateTime? anchor,
+  }) async {
     final today = dayOnly(now.toLocal());
-    final from = period.start(today);
-    final before = DateTime(today.year, today.month, today.day + 1);
+    final selected = dayOnly((anchor ?? today).toLocal());
+    final from = period.start(
+      period == PortfolioPeriod.recent ? today : selected,
+    );
+    final next = switch (period) {
+      PortfolioPeriod.month => DateTime(selected.year, selected.month + 1),
+      PortfolioPeriod.year => DateTime(selected.year + 1),
+      _ => DateTime(today.year, today.month, today.day + 1),
+    };
+    final tomorrow = DateTime(today.year, today.month, today.day + 1);
+    final before = next.isAfter(tomorrow) ? tomorrow : next;
+    final lastDay = DateTime(before.year, before.month, before.day - 1);
     final results = await Future.wait<Object>([
       records.list(
         since: from == null ? null : dateKey(from),
-        until: dateKey(today),
+        until: dateKey(lastDay),
       ),
       exercises == null
           ? Future.value(<ExerciseSession>[])
@@ -75,9 +99,11 @@ class PortfolioRepository {
             .toList()
           ..sort((a, b) => a.date.compareTo(b.date));
     final summary = MovementSummary.fromSessions(sessions);
-    final ids = sessions.map((s) => s.id).toSet();
-    _fastest.removeWhere((id, _) => !ids.contains(id));
-    ExerciseSession? longest, fastestSession, representative;
+    ExerciseSession? longest,
+        longestTime,
+        bestAverage,
+        fastestSession,
+        representative;
     SpeedSection? fastest;
     var representativeRoute = <RoutePoint>[];
     final monthly = <String, List<ExerciseSession>>{};
@@ -92,29 +118,28 @@ class PortfolioRepository {
       });
     for (final session in byDistance) {
       longest ??= session;
+      if (session.elapsedSeconds > 0 &&
+          (longestTime == null ||
+              session.elapsedSeconds > longestTime.elapsedSeconds)) {
+        longestTime = session;
+      }
+      final speed = averageKmh(session);
+      if (speed != null &&
+          (bestAverage == null || speed > averageKmh(bestAverage)!)) {
+        bestAverage = session;
+      }
       final local = session.startedAt.toLocal();
       monthly
           .putIfAbsent('${local.year}-${local.month}', () => [])
           .add(session);
-      List<RoutePoint>? points;
-      if (!_fastest.containsKey(session.id)) {
-        points = await exercises!.analysisRoute(session.id);
-        SpeedSection? best;
-        for (final section in speedSections(points)) {
-          if (section.kmh <= TrackingPolicy.maxSpeed(session.type) * 3.6 &&
-              (best == null || section.kmh > best.kmh)) {
-            best = section;
-          }
-        }
-        _fastest[session.id] = best;
-      }
-      final best = _fastest[session.id];
+      final analysis = await exercises!.portfolioAnalysis(session);
+      final best = analysis.fastest;
       if (best != null && (fastest == null || best.kmh > fastest.kmh)) {
         fastest = best;
         fastestSession = session;
       }
       if (representative == null) {
-        points ??= await exercises!.analysisRoute(session.id);
+        final points = analysis.route;
         if (points.length >= 2 && session.distanceMeters > 0) {
           representative = session;
           representativeRoute = points;
@@ -130,7 +155,7 @@ class PortfolioRepository {
     }
     final months = <PortfolioMonth>[];
     for (
-      var month = DateTime(today.year, today.month);
+      var month = DateTime(lastDay.year, lastDay.month);
       !month.isBefore(DateTime(first.year, first.month));
       month = DateTime(month.year, month.month - 1)
     ) {
@@ -148,10 +173,24 @@ class PortfolioRepository {
       weights: weights,
       months: months,
       longest: longest,
+      longestTime: longestTime,
+      bestAverage: bestAverage,
+      recent: (List<ExerciseSession>.of(
+        sessions,
+      )..sort((a, b) => b.startedAt.compareTo(a.startedAt))).take(5).toList(),
+      periodStart: from,
+      periodEnd: lastDay,
       fastest: fastest,
       fastestSession: fastestSession,
       representative: representative,
       route: representativeRoute,
     );
   }
+}
+
+// Average speed includes all unpaused time. Near-zero distances are not records.
+double? averageKmh(ExerciseSession s) {
+  if (s.elapsedSeconds <= 0 || s.distanceMeters < 20) return null;
+  final kmh = s.distanceMeters / s.elapsedSeconds * 3.6;
+  return kmh <= TrackingPolicy.maxSpeed(s.type) * 3.6 ? kmh : null;
 }

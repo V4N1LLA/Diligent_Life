@@ -170,6 +170,14 @@ class ExerciseRecorder extends ChangeNotifier {
           DateTime.now().toUtc().difference(_lastFixAt!).inSeconds > 30);
 
   Future<void> restore() async {
+    // Restore also runs after a confirmed backup replacement while idle.
+    if (active) throw StateError('Cannot restore during an active exercise');
+    session = null;
+    _points.clear();
+    _clock.reset();
+    _baseSeconds = 0;
+    currentPosition = null;
+    _lastFixAt = null;
     final saved = await repository.active();
     if (saved == null) return;
     // Never count time or connect GPS segments across a killed process.

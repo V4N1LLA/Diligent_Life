@@ -273,6 +273,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('최근 30일'));
+    await tester.pumpAndSettle();
     List<FlSpot> points() => tester
         .widget<LineChart>(find.byType(LineChart).first)
         .data

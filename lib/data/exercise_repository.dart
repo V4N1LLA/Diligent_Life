@@ -1,11 +1,106 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 
 import '../models/exercise_session.dart';
 import '../models/exercise_type.dart';
+import '../utils/gps.dart';
+import '../utils/portfolio_analysis.dart';
 
 class ExerciseRepository {
   ExerciseRepository(this.database);
   final Database database;
+  Future<void>? _cacheReady;
+  Future<void> _ensureCache() => _cacheReady ??= database.execute('''
+    CREATE TABLE IF NOT EXISTS portfolio_analysis (
+      sessionId INTEGER PRIMARY KEY REFERENCES exercise_sessions(id) ON DELETE CASCADE,
+      sourceVersion TEXT NOT NULL, data TEXT NOT NULL
+    )''');
+
+  Future<PortfolioAnalysis> portfolioAnalysis(ExerciseSession session) async {
+    await _ensureCache();
+    return database.transaction((txn) => _portfolioAnalysis(session.id, txn));
+  }
+
+  Future<PortfolioAnalysis> _portfolioAnalysis(int id, Transaction txn) async {
+    final current = await txn.query(
+      'exercise_sessions',
+      where: "id = ? AND status = 'finished'",
+      whereArgs: [id],
+    );
+    if (current.isEmpty) return const PortfolioAnalysis([], null);
+    final session = ExerciseSession.fromMap(current.single);
+    final version =
+        '1/${TrackingPolicy.version}/${session.updatedAt.toIso8601String()}';
+    final cached = await txn.query(
+      'portfolio_analysis',
+      where: 'sessionId = ? AND sourceVersion = ?',
+      whereArgs: [session.id, version],
+    );
+    if (cached.isNotEmpty) {
+      try {
+        return PortfolioAnalysis.fromMap(
+          jsonDecode(cached.first['data'] as String) as Map<String, dynamic>,
+        );
+      } catch (_) {
+        /* Derived data can always be rebuilt. */
+      }
+    }
+    var table = 'raw_route_points';
+    var where = "sessionId = ? AND decision = 'accepted'";
+    var count = Sqflite.firstIntValue(
+      await txn.rawQuery('SELECT COUNT(*) FROM $table WHERE $where', [
+        session.id,
+      ]),
+    )!;
+    if (count == 0) {
+      table = 'route_points';
+      where = 'sessionId = ?';
+      count = Sqflite.firstIntValue(
+        await txn.rawQuery('SELECT COUNT(*) FROM $table WHERE $where', [
+          session.id,
+        ]),
+      )!;
+    }
+    final analyzer = PortfolioAnalyzer(
+      stride: (count / 600).ceil().clamp(1, 1 << 30),
+      maxKmh: TrackingPolicy.maxSpeed(session.type) * 3.6,
+    );
+    int lastId = 0;
+    while (true) {
+      final rows = await txn.query(
+        table,
+        where: '$where AND id > ?',
+        whereArgs: [session.id, lastId],
+        orderBy: 'id',
+        limit: 1000,
+      );
+      if (rows.isEmpty) break;
+      for (final row in rows) {
+        analyzer.add(RoutePoint.fromMap(row));
+      }
+      lastId = rows.last['id'] as int;
+    }
+    final analysis = analyzer.finish();
+    // A deletion/import during asynchronous analysis must not resurrect a cache.
+    final existing = await txn.query(
+      'exercise_sessions',
+      columns: ['updatedAt'],
+      where: "id = ? AND status = 'finished'",
+      whereArgs: [session.id],
+    );
+    if (existing.isNotEmpty &&
+        existing.first['updatedAt'] ==
+            session.updatedAt.toUtc().toIso8601String()) {
+      await txn.insert('portfolio_analysis', {
+        'sessionId': session.id,
+        'sourceVersion': version,
+        'data': jsonEncode(analysis.toMap()),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    return analysis;
+  }
+
   static Future<void> createSchema(DatabaseExecutor db) async {
     await db.execute('''CREATE TABLE exercise_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
