@@ -55,7 +55,7 @@ class SettingsScreen extends StatelessWidget {
         const SizedBox(height: 24),
         Text('Diligent Life', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        const Text('버전 0.3.1'),
+        const Text('버전 0.4.0'),
         const SizedBox(height: 16),
         const Text(
           '가볍게 기록하고, 차분하게 변화를 확인하세요.\n\n광고와 로그인 없이, 기록은 이 기기에 저장돼요. 앱을 삭제하면 기록도 삭제돼요.',
@@ -69,7 +69,7 @@ class SettingsScreen extends StatelessWidget {
           onPressed: () => showLicensePage(
             context: context,
             applicationName: 'Diligent Life',
-            applicationVersion: '0.3.1',
+            applicationVersion: '0.4.0',
           ),
           child: const Text('오픈소스 라이선스'),
         ),

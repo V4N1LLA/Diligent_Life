@@ -251,63 +251,51 @@ void main() {
     expect(repository.records.values.single.weightKg, 71);
   });
 
-  testWidgets(
-    '7/30/all filters include correct dates and keep gaps distinct from zero',
-    (tester) async {
-      final now = dayOnly(DateTime.now());
-      String ago(int days) =>
-          dateKey(DateTime(now.year, now.month, now.day - days));
-      for (final days in [0, 6, 7, 29, 30]) {
-        await repository.save(
-          record(
-            ago(days),
-            duration: days == 0 ? 0 : 30,
-            calories: days == 0 ? 0 : 102.9,
-            distance: null,
-          ),
-        );
-      }
-      await tester.pumpWidget(
-        DiligentLifeApp(
-          home: Scaffold(
-            body: TrendsScreen(repository: repository, revision: 0),
-          ),
+  testWidgets('30/year/all weight filters preserve measurement gaps', (
+    tester,
+  ) async {
+    final now = dayOnly(DateTime.now());
+    String ago(int days) =>
+        dateKey(DateTime(now.year, now.month, now.day - days));
+    for (final days in [0, 6, 7, 29, 30]) {
+      await repository.save(
+        record(
+          ago(days),
+          duration: days == 0 ? 0 : 30,
+          calories: days == 0 ? 0 : 102.9,
+          distance: null,
         ),
       );
-      await tester.pumpAndSettle();
-      List<FlSpot> points() => tester
-          .widget<LineChart>(find.byType(LineChart).first)
-          .data
-          .lineBarsData
-          .first
-          .spots;
-      expect(points().where((s) => !s.isNull()), hasLength(2));
-      expect(points().where((s) => s.isNull()), hasLength(1));
-      await tester.tap(find.text('최근 30일'));
-      await tester.pumpAndSettle();
-      expect(points().where((s) => !s.isNull()), hasLength(4));
-      await tester.tap(find.text('전체'));
-      await tester.pumpAndSettle();
-      expect(points().where((s) => !s.isNull()), hasLength(5));
-      final weightChart = tester
-          .widget<LineChart>(find.byType(LineChart).first)
-          .data;
-      expect(weightChart.maxY - weightChart.minY, greaterThanOrEqualTo(2));
-      await tester.drag(find.byType(ListView), const Offset(0, -400));
-      await tester.pumpAndSettle();
-      final charts = tester
-          .widgetList<LineChart>(find.byType(LineChart))
-          .toList();
-      expect(
-        charts.any(
-          (c) => c.data.lineBarsData.first.spots.any(
-            (s) => !s.isNull() && s.y == 0,
-          ),
-        ),
-        isTrue,
-      );
-    },
-  );
+    }
+    await tester.pumpWidget(
+      DiligentLifeApp(
+        home: Scaffold(body: TrendsScreen(repository: repository, revision: 0)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    List<FlSpot> points() => tester
+        .widget<LineChart>(find.byType(LineChart).first)
+        .data
+        .lineBarsData
+        .first
+        .spots;
+    expect(points().where((s) => !s.isNull()), hasLength(4));
+    expect(points().where((s) => s.isNull()), hasLength(2));
+    await tester.tap(find.text('최근 30일'));
+    await tester.pumpAndSettle();
+    expect(points().where((s) => !s.isNull()), hasLength(4));
+    await tester.tap(find.text('전체'));
+    await tester.pumpAndSettle();
+    expect(points().where((s) => !s.isNull()), hasLength(5));
+    final weightChart = tester
+        .widget<LineChart>(find.byType(LineChart).first)
+        .data;
+    expect(weightChart.maxY - weightChart.minY, greaterThanOrEqualTo(2));
+    await tester.drag(find.byType(ListView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(find.byType(LineChart), findsOneWidget);
+    expect(points().where((s) => !s.isNull()).every((s) => s.y == 70), isTrue);
+  });
   for (final brightness in Brightness.values) {
     testWidgets('all tabs fit 320px at 2x text in ${brightness.name}', (
       tester,
@@ -328,7 +316,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      for (final label in ['추이', '설정', '오늘']) {
+      for (final label in ['포트폴리오', '설정', '오늘']) {
         await tester.tap(
           find.descendant(
             of: find.byType(NavigationBar),

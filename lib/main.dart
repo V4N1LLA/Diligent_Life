@@ -148,7 +148,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void _recordingChanged() {
     final active = widget.recorder?.active ?? false;
     if (mounted && _exerciseActive != active) {
-      setState(() => _exerciseActive = active);
+      setState(() {
+        _exerciseActive = active;
+        _revision++;
+      });
     }
   }
 
@@ -235,9 +238,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         actions: [
           if (widget.recorder != null)
             TextButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 FocusManager.instance.primaryFocus?.unfocus();
-                Navigator.of(context).push(
+                await Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => ExerciseScreen(
                       recorder: widget.recorder!,
@@ -245,6 +248,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     ),
                   ),
                 );
+                if (mounted) setState(() => _revision++);
               },
               icon: Icon(
                 widget.recorder!.active ? Icons.location_on : Icons.route,
@@ -273,6 +277,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 TrendsScreen(
                   repository: widget.repository,
                   revision: _revision,
+                  exercises: widget.recorder?.repository,
                 ),
                 SettingsScreen(reminders: widget.reminders),
               ],
@@ -295,7 +300,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             selectedIcon: Icon(Icons.edit),
             label: '오늘',
           ),
-          NavigationDestination(icon: Icon(Icons.show_chart), label: '추이'),
+          NavigationDestination(
+            icon: Icon(Icons.insights_outlined),
+            label: '포트폴리오',
+          ),
           NavigationDestination(icon: Icon(Icons.tune), label: '설정'),
         ],
       ),

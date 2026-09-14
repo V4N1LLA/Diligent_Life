@@ -99,6 +99,33 @@ class ExerciseRepository {
     where: "status = 'finished'",
     orderBy: 'startedAt DESC',
   )).map(ExerciseSession.fromMap).toList();
+
+  Future<List<ExerciseSession>> finishedBetween({
+    DateTime? from,
+    required DateTime before,
+  }) async => (await database.query(
+    'exercise_sessions',
+    where:
+        "status = 'finished' AND startedAt < ?${from == null ? '' : ' AND startedAt >= ?'}",
+    whereArgs: [
+      before.toUtc().toIso8601String(),
+      if (from != null) from.toUtc().toIso8601String(),
+    ],
+    orderBy: 'startedAt ASC, id ASC',
+  )).map(ExerciseSession.fromMap).toList();
+
+  // v0.3 raw samples retain the filtering decisions. Older sessions fall back
+  // to their saved accepted route; unavailable raw data is never fabricated.
+  Future<List<RoutePoint>> analysisRoute(int id) async {
+    final rows = await database.query(
+      'raw_route_points',
+      where: "sessionId = ? AND decision = 'accepted'",
+      whereArgs: [id],
+      orderBy: 'id ASC',
+    );
+    return rows.isEmpty ? route(id) : rows.map(RoutePoint.fromMap).toList();
+  }
+
   Future<List<RoutePoint>> route(int id) async => (await database.query(
     'route_points',
     where: 'sessionId = ?',

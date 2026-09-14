@@ -2,82 +2,111 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../data/record_repository.dart';
+import '../data/exercise_repository.dart';
+import '../data/portfolio_repository.dart';
 import '../models/daily_record.dart';
+import '../models/exercise_session.dart';
 import '../utils/dates.dart';
+import '../utils/gps.dart';
+import '../widgets/exercise_route.dart';
+import 'exercise_screen.dart';
 
 class TrendsScreen extends StatefulWidget {
   const TrendsScreen({
     super.key,
     required this.repository,
     required this.revision,
+    this.exercises,
   });
   final RecordRepository repository;
+  final ExerciseRepository? exercises;
   final int revision;
   @override
   State<TrendsScreen> createState() => _TrendsScreenState();
 }
 
 class _TrendsScreenState extends State<TrendsScreen> {
-  int _days = 7;
-  late Future<List<DailyRecord>> _records;
+  PortfolioPeriod _period = PortfolioPeriod.recent;
+  late PortfolioRepository _repository;
+  late Future<PortfolioData> _data;
   @override
   void initState() {
     super.initState();
+    _repository = PortfolioRepository(widget.repository, widget.exercises);
     _reload();
   }
 
   @override
   void didUpdateWidget(TrendsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.revision != widget.revision) _reload();
+    if (oldWidget.repository != widget.repository ||
+        oldWidget.exercises != widget.exercises) {
+      _repository = PortfolioRepository(widget.repository, widget.exercises);
+      _reload();
+    } else if (oldWidget.revision != widget.revision) {
+      _reload();
+    }
   }
 
   void _reload() {
-    final today = dayOnly(DateTime.now());
-    _records = widget.repository.list(
-      until: dateKey(today),
-      since: _days == 0
-          ? null
-          : dateKey(DateTime(today.year, today.month, today.day - _days + 1)),
+    _data = _repository.load(_period, DateTime.now());
+    // A synchronous storage failure may arrive before the next frame attaches
+    // FutureBuilder. Handle it now; FutureBuilder still displays its error.
+    _data.ignore();
+  }
+
+  Future<void> _open(ExerciseSession session) async {
+    final repository = widget.exercises;
+    if (repository == null) return;
+    final deleted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ExerciseDetailScreen(
+          session: session,
+          route: repository.route(session.id),
+          onDelete: () => repository.deleteFinished(session.id),
+        ),
+      ),
     );
+    if (mounted && deleted == true) setState(_reload);
   }
 
   @override
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
     children: [
-      Text('나의 변화', style: Theme.of(context).textTheme.headlineMedium),
+      Text('나의 포트폴리오', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 8),
-      const Text('기록이 쌓이면 흐름이 보여요.'),
-      const SizedBox(height: 8),
-      const Text('기록이 없는 날은 선을 잇지 않아요. 0분은 운동 없이 저장한 날이에요.'),
-      const SizedBox(height: 24),
+      const Text('지금까지의 움직임, 그리고 나의 변화.'),
+      const SizedBox(height: 20),
       Wrap(
         spacing: 8,
         runSpacing: 8,
         children: [
-          for (final (days, label) in [(7, '최근 7일'), (30, '최근 30일'), (0, '전체')])
+          for (final period in PortfolioPeriod.values)
             ChoiceChip(
-              label: Text(label),
-              selected: _days == days,
+              label: Text(period.label),
+              selected: _period == period,
               onSelected: (_) => setState(() {
-                _days = days;
+                _period = period;
                 _reload();
               }),
             ),
         ],
       ),
-      const SizedBox(height: 32),
-      FutureBuilder<List<DailyRecord>>(
-        future: _records,
+      const SizedBox(height: 28),
+      FutureBuilder<PortfolioData>(
+        future: _data,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Padding(
+              padding: EdgeInsets.all(40),
+              child: Center(child: CircularProgressIndicator()),
+            );
           }
           if (snapshot.hasError) {
             return Column(
               children: [
-                const Text('기록을 불러오지 못했어요.'),
+                const Text('포트폴리오를 불러오지 못했어요.'),
                 TextButton(
                   onPressed: () => setState(_reload),
                   child: const Text('다시 시도'),
@@ -85,41 +114,134 @@ class _TrendsScreenState extends State<TrendsScreen> {
               ],
             );
           }
-          final records = snapshot.data!;
-          if (records.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 64),
-              child: Column(
-                children: [
-                  Icon(Icons.show_chart, size: 40),
-                  SizedBox(height: 16),
-                  Text('아직 이 기간의 기록이 없어요.'),
-                  SizedBox(height: 8),
-                  Text('오늘 화면에서 첫 기록을 남겨보세요.'),
-                ],
-              ),
-            );
-          }
+          final data = snapshot.data!;
+          final summary = data.summary;
+          final change = data.weightChange;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text('함께 쌓인 거리', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                '${(summary.meters / 1000).toStringAsFixed(2)} km',
+                style: Theme.of(context).textTheme.displaySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.primary),
+              ),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 24,
+                runSpacing: 20,
+                children: [
+                  _Metric('운동 횟수', '${summary.count}회'),
+                  _Metric('총 운동 시간', elapsedLabel(summary.seconds)),
+                  _Metric(
+                    '예상 소모 칼로리',
+                    summary.calories == null
+                        ? '— kcal'
+                        : '약 ${summary.calories!.round()} kcal',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '완료한 GPS 운동 기준 · 수동 입력 운동은 합산하지 않아요.',
+                style: TextStyle(fontSize: 12),
+              ),
+              if (summary.calorieCount < summary.count)
+                Text(
+                  summary.calorieCount == 0
+                      ? '몸무게가 저장된 운동부터 예상 kcal를 계산해요.'
+                      : '예상 kcal는 몸무게가 있는 ${summary.calorieCount}개 운동의 합계예요.',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              if (summary.count == 0)
+                const Padding(
+                  padding: EdgeInsets.only(top: 20),
+                  child: Text('이 기간에 완료한 GPS 운동이 없어요. 상단 운동 버튼에서 첫 경로를 남겨보세요.'),
+                ),
+              if (summary.count == 0 && data.weights.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Text('아직 이 기간의 기록이 없어요.'),
+                ),
+              const _Section('몸무게의 변화'),
+              if (change != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    '기간 내 변화 ${change > 0 ? '+' : ''}${change.toStringAsFixed(1)} kg · ${data.weights.length}회 측정',
+                  ),
+                ),
               _Trend(
                 title: '몸무게',
                 unit: 'kg',
-                records: records.where((r) => r.weightKg != null).toList(),
+                records: data.weights,
                 value: (r) => r.weightKg!,
               ),
-              _Trend(
-                title: '운동 시간',
-                unit: '분',
-                records: records,
-                value: (r) => r.durationMinutes.toDouble(),
+              const Text(
+                '실제 측정한 값만 표시해요. 측정하지 않은 날은 선을 잇지 않아요.',
+                style: TextStyle(fontSize: 12),
               ),
-              _Trend(
-                title: '예상 소모 칼로리',
-                unit: 'kcal',
-                records: records,
-                value: (r) => r.estimatedCalories,
+              const _Section('월별 움직임'),
+              const Text(
+                '선택한 기간에 포함된 운동만 합산해요.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              _MonthlySummary(key: ValueKey(_period), months: data.months),
+              const _Section('나를 보여주는 기록'),
+              if (data.longest case final session?)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('가장 멀리 간 운동'),
+                  subtitle: Text(
+                    '${(session.distanceMeters / 1000).toStringAsFixed(2)} km · ${elapsedLabel(session.elapsedSeconds)}\n${dateKey(session.startedAt.toLocal())} · ${session.type.label}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _open(session),
+                )
+              else
+                const Text('운동을 마치면 나만의 대표 기록이 여기에 남아요.'),
+              if (data.fastest case final speed?)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('가장 빠른 이동 구간'),
+                  subtitle: Text(
+                    '${speed.kmh.toStringAsFixed(1)} km/h · ${paceLabel(speed.paceSeconds)}\n${dateKey(speed.points.first.timestamp.toLocal())} · ${_time(speed.points.first.timestamp)}–${_time(speed.points.last.timestamp)}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _open(data.fastestSession!),
+                )
+              else if (summary.count > 0)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('속도를 비교할 연속 이동 구간이 아직 없어요.'),
+                ),
+              const Text(
+                '속도는 최소 5초 구간 평균으로 비교하고, GPS 공백과 비현실적 속도는 제외해요.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const _Section('대표 경로'),
+              if (data.representative case final session?) ...[
+                Text(
+                  '${dateKey(session.startedAt.toLocal())} · ${(session.distanceMeters / 1000).toStringAsFixed(2)} km',
+                ),
+                const SizedBox(height: 12),
+                ExerciseRoute(
+                  key: ValueKey(session.id),
+                  points: data.route,
+                  height: 300,
+                ),
+                TextButton(
+                  onPressed: () => _open(session),
+                  child: const Text('이 운동 자세히 보기'),
+                ),
+              ] else
+                const Text('지도에 표시할 이동 경로가 아직 없어요.'),
+              const SizedBox(height: 12),
+              const Text(
+                'GPS 거리·속도와 MET 칼로리는 추정치예요. 지도 로딩에는 인터넷 연결이 필요해요.',
+                style: TextStyle(fontSize: 12),
               ),
             ],
           );
@@ -127,6 +249,94 @@ class _TrendsScreenState extends State<TrendsScreen> {
       ),
     ],
   );
+}
+
+String _time(DateTime value) {
+  final t = value.toLocal();
+  return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}';
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric(this.label, this.value);
+  final String label, value;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label),
+      const SizedBox(height: 6),
+      Text(value, style: Theme.of(context).textTheme.headlineSmall),
+    ],
+  );
+}
+
+class _Section extends StatelessWidget {
+  const _Section(this.title);
+  final String title;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 28, bottom: 20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(),
+        const SizedBox(height: 20),
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+      ],
+    ),
+  );
+}
+
+class _MonthlySummary extends StatefulWidget {
+  const _MonthlySummary({super.key, required this.months});
+  final List<PortfolioMonth> months;
+  @override
+  State<_MonthlySummary> createState() => _MonthlySummaryState();
+}
+
+class _MonthlySummaryState extends State<_MonthlySummary> {
+  bool _all = false;
+  @override
+  Widget build(BuildContext context) {
+    final maxDistance = widget.months.fold<double>(
+      1,
+      (max, m) => m.summary.meters > max ? m.summary.meters : max,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final month in widget.months.take(_all ? widget.months.length : 6))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '${month.month.year}.${month.month.month.toString().padLeft(2, '0')} · ${month.summary.count}회 · ${(month.summary.meters / 1000).toStringAsFixed(2)} km',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${elapsedLabel(month.summary.seconds)} · ${month.summary.calories == null ? '— kcal' : '약 ${month.summary.calories!.round()} kcal'}${month.summary.calorieCount > 0 && month.summary.calorieCount < month.summary.count ? ' (일부 기록)' : ''}',
+                ),
+                const SizedBox(height: 10),
+                LinearProgressIndicator(
+                  value: month.summary.meters / maxDistance,
+                  minHeight: 4,
+                  borderRadius: BorderRadius.circular(4),
+                  semanticsLabel: '${month.month.month}월 운동 거리',
+                ),
+              ],
+            ),
+          ),
+        if (widget.months.length > 6)
+          TextButton(
+            onPressed: () => setState(() => _all = !_all),
+            child: Text(_all ? '최근 6개월만 보기' : '모든 월 보기'),
+          ),
+      ],
+    );
+  }
 }
 
 class _Trend extends StatelessWidget {
