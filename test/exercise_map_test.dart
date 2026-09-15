@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:diligent_life/models/exercise_session.dart';
 import 'package:diligent_life/widgets/exercise_route.dart';
@@ -11,7 +12,7 @@ import 'exercise_test.dart' show point;
 class TestTiles extends TileProvider {
   final image = MemoryImage(
     base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6JAAAAABJRU5ErkJggg==',
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==',
     ),
   );
   @override
@@ -20,6 +21,23 @@ class TestTiles extends TileProvider {
 }
 
 void main() {
+  testWidgets('offline map tile is a decodable 1x1 PNG', (tester) async {
+    await tester.runAsync(() async {
+      final codec = await ui.instantiateImageCodec(TestTiles().image.bytes);
+      try {
+        final frame = await codec.getNextFrame();
+        try {
+          expect(frame.image.width, 1);
+          expect(frame.image.height, 1);
+        } finally {
+          frame.image.dispose();
+        }
+      } finally {
+        codec.dispose();
+      }
+    });
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'live map follows fixes; gesture suspends follow; button restores it',
     (tester) async {
