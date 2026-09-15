@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:diligent_life/data/exercise_repository.dart';
+import 'package:diligent_life/utils/movement_analysis.dart';
 import 'package:diligent_life/main.dart';
 import 'package:diligent_life/models/exercise_session.dart';
 import 'package:diligent_life/models/exercise_type.dart';
@@ -21,6 +22,18 @@ import 'exercise_test.dart' show FakeLocation, point;
 class MemoryExerciseRepository implements ExerciseRepository {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  @override
+  Future<MovementAnalysis> movementAnalysis(
+    ExerciseSession session, {
+    bool recalculate = false,
+  }) async {
+    final analyzer = MovementAnalyzer(session, rawAvailable: false);
+    for (final p in savedPoints) {
+      analyzer.addRow(p.toMap(session.id));
+    }
+    return analyzer.finish();
+  }
+
   ExerciseSession? saved;
   final savedPoints = <RoutePoint>[];
   @override

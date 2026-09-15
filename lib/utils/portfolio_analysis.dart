@@ -1,5 +1,6 @@
 import '../models/exercise_session.dart';
 import 'gps.dart';
+import 'movement_analysis.dart';
 
 // A global map budget is shared across sessions. Keep every segment endpoint,
 // even if many pauses mean exceeding the target; never draw across missing GPS.
@@ -19,10 +20,12 @@ List<RoutePoint> sampleOverviewRoute(List<RoutePoint> points, int target) {
 
 // Derived display data only. Originals are always retained in SQLite/backups.
 class PortfolioAnalysis {
-  const PortfolioAnalysis(this.route, this.fastest);
+  const PortfolioAnalysis(this.route, this.fastest, {this.movement});
+  final MovementAnalysis? movement;
   final List<RoutePoint> route;
   final SpeedSection? fastest;
   Map<String, Object?> toMap() => {
+    'movement': movement?.toMap(),
     'route': route.map((p) => p.toMap(0)).toList(),
     'fastest': fastest == null
         ? null
@@ -45,6 +48,11 @@ class PortfolioAnalysis {
               points(best['points']),
               (best['meters'] as num).toDouble(),
               (best['seconds'] as num).toDouble(),
+            ),
+      movement: m['movement'] == null
+          ? null
+          : MovementAnalysis.fromMap(
+              Map<String, dynamic>.from(m['movement'] as Map),
             ),
     );
   }

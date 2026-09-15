@@ -22,6 +22,8 @@ class ExerciseRoute extends StatefulWidget {
     required this.points,
     this.currentPosition,
     this.selectedPoint,
+    this.sections,
+    this.selectedSection,
     this.live = false,
     this.overview = false,
     this.interactive = true,
@@ -32,6 +34,8 @@ class ExerciseRoute extends StatefulWidget {
   final List<RoutePoint> points;
   final RoutePoint? currentPosition;
   final RoutePoint? selectedPoint;
+  final List<SpeedSection>? sections;
+  final SpeedSection? selectedSection;
   final bool live, interactive, private, overview;
   final double height;
   // Injectable for deterministic, offline map tests.
@@ -58,7 +62,9 @@ class ExerciseRouteState extends State<ExerciseRoute> {
   @override
   void initState() {
     super.initState();
-    _speeds = widget.overview ? [] : speedSections(widget.points);
+    _speeds = widget.overview
+        ? []
+        : (widget.sections ?? speedSections(widget.points));
   }
 
   @override
@@ -77,10 +83,17 @@ class ExerciseRouteState extends State<ExerciseRoute> {
         _controller.camera.zoom,
       );
     }
+    if (oldWidget.sections != widget.sections) {
+      _speeds = widget.overview
+          ? []
+          : (widget.sections ?? speedSections(widget.points));
+    }
     if (oldWidget.points.length != widget.points.length ||
         oldWidget.points.firstOrNull != widget.points.firstOrNull ||
         oldWidget.points.lastOrNull != widget.points.lastOrNull) {
-      _speeds = widget.overview ? [] : speedSections(widget.points);
+      _speeds = widget.overview
+          ? []
+          : (widget.sections ?? speedSections(widget.points));
       if (!widget.live) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _fit();
@@ -208,6 +221,22 @@ class ExerciseRouteState extends State<ExerciseRoute> {
         ),
       ),
     );
+    if (widget.selectedSection case final selected?) {
+      lines.add(
+        Polyline(
+          points: selected.points.map(routeLocation).toList(),
+          color: Theme.of(context).colorScheme.onSurface,
+          strokeWidth: 9,
+        ),
+      );
+      lines.add(
+        Polyline(
+          points: selected.points.map(routeLocation).toList(),
+          color: speedColor(selected.kmh),
+          strokeWidth: 5,
+        ),
+      );
+    }
     Marker marker(RoutePoint p, IconData icon, Color color, String label) =>
         Marker(
           point: routeLocation(p),

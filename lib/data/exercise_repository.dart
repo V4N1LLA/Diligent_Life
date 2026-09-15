@@ -1,10 +1,11 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:sqflite/sqflite.dart';
 
 import '../models/exercise_session.dart';
 import '../models/exercise_type.dart';
-import '../utils/gps.dart';
+import '../utils/movement_analysis.dart';
 import '../utils/portfolio_analysis.dart';
 
 class ExerciseRepository {
@@ -22,7 +23,23 @@ class ExerciseRepository {
     return database.transaction((txn) => _portfolioAnalysis(session.id, txn));
   }
 
-  Future<PortfolioAnalysis> _portfolioAnalysis(int id, Transaction txn) async {
+  Future<MovementAnalysis> movementAnalysis(
+    ExerciseSession session, {
+    bool recalculate = false,
+  }) async {
+    await _ensureCache();
+    final data = await database.transaction(
+      (txn) => _portfolioAnalysis(session.id, txn, recalculate: recalculate),
+    );
+    return data.movement ??
+        MovementAnalyzer(session, rawAvailable: false).finish();
+  }
+
+  Future<PortfolioAnalysis> _portfolioAnalysis(
+    int id,
+    Transaction txn, {
+    bool recalculate = false,
+  }) async {
     final current = await txn.query(
       'exercise_sessions',
       where: "id = ? AND status = 'finished'",
@@ -31,13 +48,13 @@ class ExerciseRepository {
     if (current.isEmpty) return const PortfolioAnalysis([], null);
     final session = ExerciseSession.fromMap(current.single);
     final version =
-        '1/${TrackingPolicy.version}/${session.updatedAt.toIso8601String()}';
+        '2/${AnalysisPolicy.version}/${session.updatedAt.toIso8601String()}';
     final cached = await txn.query(
       'portfolio_analysis',
       where: 'sessionId = ? AND sourceVersion = ?',
       whereArgs: [session.id, version],
     );
-    if (cached.isNotEmpty) {
+    if (!recalculate && cached.isNotEmpty) {
       try {
         return PortfolioAnalysis.fromMap(
           jsonDecode(cached.first['data'] as String) as Map<String, dynamic>,
@@ -47,8 +64,8 @@ class ExerciseRepository {
       }
     }
     var table = 'raw_route_points';
-    var where = "sessionId = ? AND decision = 'accepted'";
-    var count = Sqflite.firstIntValue(
+    var where = 'sessionId = ?';
+    final count = Sqflite.firstIntValue(
       await txn.rawQuery('SELECT COUNT(*) FROM $table WHERE $where', [
         session.id,
       ]),
@@ -56,15 +73,10 @@ class ExerciseRepository {
     if (count == 0) {
       table = 'route_points';
       where = 'sessionId = ?';
-      count = Sqflite.firstIntValue(
-        await txn.rawQuery('SELECT COUNT(*) FROM $table WHERE $where', [
-          session.id,
-        ]),
-      )!;
     }
-    final analyzer = PortfolioAnalyzer(
-      stride: (count / 600).ceil().clamp(1, 1 << 30),
-      maxKmh: TrackingPolicy.maxSpeed(session.type) * 3.6,
+    final analyzer = MovementAnalyzer(
+      session,
+      rawAvailable: table == 'raw_route_points',
     );
     int lastId = 0;
     while (true) {
@@ -77,11 +89,16 @@ class ExerciseRepository {
       );
       if (rows.isEmpty) break;
       for (final row in rows) {
-        analyzer.add(RoutePoint.fromMap(row));
+        analyzer.addRow(row);
       }
       lastId = rows.last['id'] as int;
     }
-    final analysis = analyzer.finish();
+    final movement = await Isolate.run(analyzer.finish);
+    final analysis = PortfolioAnalysis(
+      sampleOverviewRoute(movement.route, 600),
+      movement.fastest?.speed,
+      movement: movement,
+    );
     // A deletion/import during asynchronous analysis must not resurrect a cache.
     final existing = await txn.query(
       'exercise_sessions',

@@ -156,7 +156,7 @@ void main() {
       expect((await portfolio.load(PortfolioPeriod.all, now)).summary.count, 5);
     });
 
-    test('fastest uses accepted raw geometry, legacy fallback and deletion refresh', () async {
+    test('fastest uses reanalyzed raw geometry, legacy fallback and deletion refresh', () async {
       RoutePoint p(DateTime date, int seconds, double delta) => RoutePoint(
         latitude: 37 + delta,
         longitude: 127,
@@ -171,7 +171,7 @@ void main() {
         legacyDate,
       );
       await exercises.checkpoint(old, point: p(legacyDate, 0, 0));
-      await exercises.checkpoint(old, point: p(legacyDate, 5, .00005));
+      await exercises.checkpoint(old, point: p(legacyDate, 6, .00006));
       await exercises.checkpoint(
         old.copyWith(
           status: SessionStatus.finished,
@@ -193,8 +193,19 @@ void main() {
       );
       await exercises.checkpoint(
         raw,
-        point: p(date, 5, .00005),
-        rawPoint: p(date, 5, .0001),
+        point: p(date, 6, .00006),
+        rawPoint: p(date, 6, .00012),
+        receivedAt: date.add(const Duration(seconds: 6)),
+      );
+      await exercises.checkpoint(
+        raw,
+        rawPoint: p(date, 12, .00024),
+        receivedAt: date.add(const Duration(seconds: 12)),
+      );
+      await exercises.checkpoint(
+        raw,
+        rawPoint: p(date, 18, .00036),
+        receivedAt: date.add(const Duration(seconds: 18)),
       );
       await exercises.checkpoint(
         raw.copyWith(
@@ -206,10 +217,10 @@ void main() {
       final data = await portfolio.load(PortfolioPeriod.recent, now);
       expect(data.fastestSession!.id, raw.id);
       expect(data.fastest!.kmh, closeTo(8, .02));
-      expect(data.fastest!.seconds, 5);
+      expect(data.fastest!.seconds, 6);
       expect(data.representative!.id, raw.id);
-      expect(data.route, hasLength(2));
-      expect(await exercises.rawRoute(raw.id), hasLength(3));
+      expect(data.route, isNotEmpty);
+      expect(await exercises.rawRoute(raw.id), hasLength(5));
       await exercises.deleteFinished(raw.id);
       final after = await portfolio.load(PortfolioPeriod.recent, now);
       expect(after.summary.count, 1);

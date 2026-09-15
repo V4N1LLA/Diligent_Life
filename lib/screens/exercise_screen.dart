@@ -10,6 +10,8 @@ import '../services/exercise_recorder.dart';
 import '../services/exercise_share.dart';
 import '../utils/dates.dart';
 import '../utils/gps.dart';
+import '../utils/movement_analysis.dart';
+import '../widgets/movement_analysis_panel.dart';
 import '../widgets/exercise_route.dart';
 
 class ExerciseScreen extends StatefulWidget {
@@ -68,6 +70,10 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         builder: (_) => ExerciseDetailScreen(
           session: session,
           route: widget.recorder.repository.route(session.id),
+          analysis: (force) => widget.recorder.repository.movementAnalysis(
+            session,
+            recalculate: force,
+          ),
           onDelete: () => widget.recorder.repository.deleteFinished(session.id),
         ),
       ),
@@ -258,10 +264,12 @@ class ExerciseDetailScreen extends StatefulWidget {
     required this.session,
     required this.route,
     required this.onDelete,
+    this.analysis,
   });
   final ExerciseSession session;
   final Future<List<RoutePoint>> route;
   final Future<void> Function() onDelete;
+  final Future<MovementAnalysis> Function(bool recalculate)? analysis;
   @override
   State<ExerciseDetailScreen> createState() => _ExerciseDetailScreenState();
 }
@@ -355,18 +363,26 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 24),
-                    ExerciseRoute(
-                      points: points,
-                      height: 340,
-                      selectedPoint: _selectedPoint,
-                    ),
+                    if (widget.analysis != null)
+                      MovementAnalysisPanel(
+                        session: widget.session,
+                        load: widget.analysis!,
+                      )
+                    else ...[
+                      ExerciseRoute(
+                        points: points,
+                        height: 340,
+                        selectedPoint: _selectedPoint,
+                      ),
+                      SpeedAnalysis(
+                        points: points,
+                        onSelected: (p) => setState(() => _selectedPoint = p),
+                      ),
+                    ],
                     const SizedBox(height: 24),
+                    const Text('기록 당시 · 공유에 사용되는 수치'),
+                    const SizedBox(height: 12),
                     SessionStats(session: widget.session),
-                    const SizedBox(height: 24),
-                    SpeedAnalysis(
-                      points: points,
-                      onSelected: (p) => setState(() => _selectedPoint = p),
-                    ),
                     const SizedBox(height: 32),
                     Text(
                       '공유 미리보기',

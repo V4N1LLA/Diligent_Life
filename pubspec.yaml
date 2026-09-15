@@ -1,7 +1,7 @@
 name: diligent_life
 description: A calm personal life tracker and movement portfolio.
 publish_to: none
-version: 0.5.0+6
+version: 0.6.0+7
 environment:
   sdk: ^3.13.2
 dependencies:

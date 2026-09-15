@@ -66,6 +66,8 @@ class _TrendsScreenState extends State<TrendsScreen> {
         builder: (_) => ExerciseDetailScreen(
           session: session,
           route: repository.route(session.id),
+          analysis: (force) =>
+              repository.movementAnalysis(session, recalculate: force),
           onDelete: () => repository.deleteFinished(session.id),
         ),
       ),
