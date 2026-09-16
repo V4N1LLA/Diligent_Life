@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/record_repository.dart';
 import '../data/exercise_repository.dart';
 import '../data/portfolio_repository.dart';
+import '../data/report_repository.dart';
 import '../models/daily_record.dart';
 import '../models/exercise_session.dart';
 import '../utils/dates.dart';
@@ -12,6 +13,7 @@ import '../widgets/exercise_route.dart';
 import 'exercise_screen.dart';
 import 'all_time_map_screen.dart';
 import 'portfolio_share_screen.dart';
+import 'report_screen.dart';
 
 class TrendsScreen extends StatefulWidget {
   const TrendsScreen({
@@ -102,6 +104,24 @@ class _TrendsScreenState extends State<TrendsScreen> {
       Text('나의 포트폴리오', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 8),
       const Text('지금까지의 움직임, 그리고 나의 변화.'),
+      if (widget.exercises != null)
+        TextButton.icon(
+          onPressed: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ReportScreen(
+                  repository: ReportRepository(
+                    widget.repository,
+                    widget.exercises!,
+                  ),
+                ),
+              ),
+            );
+            if (mounted) setState(_reload);
+          },
+          icon: const Icon(Icons.insights_outlined),
+          label: const Text('활동 리포트 · 이번 기간의 변화'),
+        ),
       const SizedBox(height: 20),
       Wrap(
         spacing: 8,

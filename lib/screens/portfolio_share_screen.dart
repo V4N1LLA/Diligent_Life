@@ -11,8 +11,14 @@ class PortfolioShareScreen extends StatefulWidget {
     super.key,
     required this.data,
     required this.title,
-  });
-  final PortfolioData data;
+  }) : image = null;
+  const PortfolioShareScreen.report({
+    super.key,
+    required this.title,
+    required this.image,
+  }) : data = null;
+  final PortfolioData? data;
+  final Future<Uint8List> Function()? image;
   final String title;
   @override
   State<PortfolioShareScreen> createState() => _PortfolioShareScreenState();
@@ -29,7 +35,9 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
   }
 
   void _load() {
-    _image = portfolioShareImage(widget.data, widget.title);
+    _image = widget.image == null
+        ? portfolioShareImage(widget.data!, widget.title)
+        : Future.sync(widget.image!);
     _image.ignore();
   }
 
@@ -43,7 +51,11 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile.fromData(bytes, mimeType: 'image/png')],
-          fileNameOverrides: ['diligent-life-portfolio.png'],
+          fileNameOverrides: [
+            widget.image == null
+                ? 'diligent-life-portfolio.png'
+                : 'diligent-life-report.png',
+          ],
           title: widget.title,
           sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
         ),
@@ -57,7 +69,7 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('포트폴리오 공유')),
+    appBar: AppBar(title: Text(widget.image == null ? '포트폴리오 공유' : '리포트 공유')),
     body: SafeArea(
       child: FutureBuilder<Uint8List>(
         future: _image,
