@@ -12,7 +12,7 @@ import 'screens/backup_screen.dart';
 import 'data/exercise_repository.dart';
 import 'services/exercise_recorder.dart';
 import 'screens/exercise_screen.dart';
-import 'screens/today_screen.dart';
+import 'screens/today_home.dart';
 import 'screens/trends_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/reminder_service.dart';
@@ -130,7 +130,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _index = 0, _revision = 0, _importRevision = 0;
-  bool _dirty = false, _leaving = false;
+  bool _leaving = false;
   bool _exerciseActive = false;
   @override
   void initState() {
@@ -157,35 +157,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _openExercise() async {
+    if (widget.recorder == null) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ExerciseScreen(
+          recorder: widget.recorder!,
+          records: widget.repository,
+        ),
+      ),
+    );
+    if (mounted) setState(() => _revision++);
+  }
+
   Future<void> _leave() async {
     if (_leaving) return;
     _leaving = true;
     try {
       if (widget.recorder?.active ?? false) {
-        final finish = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('운동을 계속 기록할까요?'),
-            content: const Text(
-              '계속 기록을 선택하면 앱을 나가도 기록이 이어져요. 일시정지 상태는 그대로 유지돼요.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('계속 기록'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('운동 종료'),
-              ),
-            ],
-          ),
-        );
-        if (finish == null || !mounted) return;
-        if (finish) {
-          await widget.recorder!.finish();
-          if (!mounted || widget.recorder!.active) return;
-        }
         // Keep the Flutter engine and its location subscription alive on Android.
         if (defaultTargetPlatform == TargetPlatform.android) {
           await const MethodChannel('diligent_life/lifecycle')
@@ -193,26 +183,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           return;
         }
         return;
-      }
-      if (_dirty) {
-        final leave = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('저장하지 않은 입력이 있어요.'),
-            content: const Text('저장하지 않고 나갈까요?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('계속 입력'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('나가기'),
-              ),
-            ],
-          ),
-        );
-        if (leave != true) return;
       }
       await SystemNavigator.pop();
     } finally {
@@ -230,7 +200,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: !_dirty && !(widget.recorder?.active ?? false),
+    canPop: !(widget.recorder?.active ?? false),
     onPopInvokedWithResult: (didPop, result) {
       if (!didPop) unawaited(_leave());
     },
@@ -238,20 +208,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('Diligent Life'),
         actions: [
-          if (widget.recorder != null)
+          if (widget.recorder != null && _index != 0)
             TextButton.icon(
-              onPressed: () async {
-                FocusManager.instance.primaryFocus?.unfocus();
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ExerciseScreen(
-                      recorder: widget.recorder!,
-                      records: widget.repository,
-                    ),
-                  ),
-                );
-                if (mounted) setState(() => _revision++);
-              },
+              onPressed: _openExercise,
               icon: Icon(
                 widget.recorder!.active ? Icons.location_on : Icons.route,
               ),
@@ -267,15 +226,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             child: IndexedStack(
               index: _index,
               children: [
-                TodayScreen(
+                TodayHome(
                   key: ValueKey(_importRevision),
                   repository: widget.repository,
+                  recorder: widget.recorder,
+                  revision: _revision,
                   onSaved: () => setState(() => _revision++),
-                  onDirtyChanged: (dirty) {
-                    if (mounted && _dirty != dirty) {
-                      setState(() => _dirty = dirty);
-                    }
-                  },
+                  openExercise: _openExercise,
                 ),
                 TrendsScreen(
                   repository: widget.repository,
@@ -290,8 +247,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         repository: BackupRepository(
                           widget.repository.database,
                         ),
-                        canImport: () =>
-                            !_dirty && !(widget.recorder?.active ?? false),
+                        canImport: () => !(widget.recorder?.active ?? false),
                         onImported: () async {
                           await widget.recorder?.restore();
                           if (mounted) {

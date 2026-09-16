@@ -131,60 +131,6 @@ void main() {
       },
     );
   }
-  testWidgets(
-    'ordinary exit has no dialog; unsaved input exit can be cancelled',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
-      final reminders = ReminderService(await SharedPreferences.getInstance());
-      await tester.pumpWidget(
-        DiligentLifeApp(
-          home: AppShell(repository: MemoryRecords(), reminders: reminders),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<PopScope<dynamic>>(
-              find.byWidgetPredicate((widget) => widget is PopScope),
-            )
-            .canPop,
-        isTrue,
-      );
-      await tester.enterText(find.byKey(const ValueKey('weight')), '70');
-      await tester.pump();
-      expect(
-        tester
-            .widget<PopScope<dynamic>>(
-              find.byWidgetPredicate((widget) => widget is PopScope),
-            )
-            .canPop,
-        isFalse,
-      );
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.text('저장하지 않은 입력이 있어요.'), findsOneWidget);
-      await tester.tap(find.text('계속 입력'));
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<TextFormField>(find.byKey(const ValueKey('weight')))
-            .controller!
-            .text,
-        '70',
-      );
-      await tester.enterText(find.byKey(const ValueKey('weight')), '');
-      await tester.pump();
-      expect(
-        tester
-            .widget<PopScope<dynamic>>(
-              find.byWidgetPredicate((widget) => widget is PopScope),
-            )
-            .canPop,
-        isTrue,
-      );
-      reminders.dispose();
-    },
-  );
   testWidgets('continue recording backgrounds Android without ending session', (
     tester,
   ) async {
@@ -221,10 +167,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('계속 기록'), findsOneWidget);
-    expect(find.text('운동 종료'), findsOneWidget);
-    await tester.tap(find.text('계속 기록'));
-    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
     expect(method, 'moveToBackground');
     expect(recorder.recording, isTrue);
     unawaited(recorder.finish());

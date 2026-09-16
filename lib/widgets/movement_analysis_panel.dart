@@ -18,10 +18,12 @@ class MovementAnalysisPanel extends StatefulWidget {
     required this.session,
     required this.load,
     this.tileProvider,
+    this.summary,
   });
   final ExerciseSession session;
   final Future<MovementAnalysis> Function(bool recalculate) load;
   final TileProvider? tileProvider;
+  final Widget? summary;
   @override
   State<MovementAnalysisPanel> createState() => _MovementAnalysisPanelState();
 }
@@ -50,7 +52,6 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('움직임 분석', style: Theme.of(context).textTheme.titleLarge),
           if (loading)
             const Padding(
               padding: EdgeInsets.all(24),
@@ -77,6 +78,10 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
                   : data.sections[_selected!].speed,
             ),
             const SizedBox(height: 20),
+            if (widget.summary != null) ...[
+              widget.summary!,
+              const SizedBox(height: 32),
+            ],
             Text('시간에 따른 속도', style: Theme.of(context).textTheme.titleMedium),
             const Text('km/h · 기록 시작 후 시간 · 빈 구간은 미분류'),
             const SizedBox(height: 8),

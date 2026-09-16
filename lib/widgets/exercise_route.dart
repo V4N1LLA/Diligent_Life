@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../theme/app_theme.dart';
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -257,7 +261,7 @@ class ExerciseRouteState extends State<ExerciseRoute> {
     return SizedBox(
       height: widget.height,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppStyle.radius),
         child: Stack(
           children: [
             Positioned.fill(
@@ -372,6 +376,7 @@ class ExerciseRouteState extends State<ExerciseRoute> {
                 child: IconButton.filledTonal(
                   tooltip: _follow ? '현재 위치 따라가는 중' : '현재 위치 따라가기',
                   onPressed: () {
+                    HapticFeedback.selectionClick();
                     setState(() => _follow = true);
                     if (_ready && position != null) {
                       _controller.move(routeLocation(position), 16);
@@ -386,7 +391,7 @@ class ExerciseRouteState extends State<ExerciseRoute> {
                 top: 8,
                 right: widget.live ? 64 : 8,
                 child: Material(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppStyle.radius),
                   color: Theme.of(context).colorScheme.surface,
                   child: TextButton(
                     onPressed: () => setState(() {

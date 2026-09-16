@@ -328,7 +328,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }
-      expect(find.byType(FilledButton).hitTestable(), findsOneWidget);
+      expect(find.text('몸무게').hitTestable(), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       reminders.dispose();
     });
@@ -351,9 +351,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const ValueKey('weight')), '70');
-      expect(find.byType(FilledButton).hitTestable(), findsOneWidget);
-      await save(tester);
+      await tester.ensureVisible(find.text('몸무게'));
+      await tester.tap(find.text('몸무게'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('quick-weight')), '70');
+      await tester.ensureVisible(find.text('몸무게 저장'));
+      await tester.tap(find.text('몸무게 저장'));
+      await tester.pumpAndSettle();
       expect(repository.records.values.single.weightKg, 70);
       expect(tester.takeException(), isNull);
       await tester.tap(

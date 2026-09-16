@@ -11,12 +11,24 @@ class PortfolioShareScreen extends StatefulWidget {
     super.key,
     required this.data,
     required this.title,
-  }) : image = null;
+  }) : image = null,
+       notice = null,
+       fileName = null;
   const PortfolioShareScreen.report({
     super.key,
     required this.title,
     required this.image,
+  }) : data = null,
+       notice = null,
+       fileName = null;
+  const PortfolioShareScreen.image({
+    super.key,
+    required this.title,
+    required this.image,
+    required this.notice,
+    required this.fileName,
   }) : data = null;
+  final String? notice, fileName;
   final PortfolioData? data;
   final Future<Uint8List> Function()? image;
   final String title;
@@ -52,9 +64,10 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
         ShareParams(
           files: [XFile.fromData(bytes, mimeType: 'image/png')],
           fileNameOverrides: [
-            widget.image == null
-                ? 'diligent-life-portfolio.png'
-                : 'diligent-life-report.png',
+            widget.fileName ??
+                (widget.image == null
+                    ? 'diligent-life-portfolio.png'
+                    : 'diligent-life-report.png'),
           ],
           title: widget.title,
           sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
@@ -69,7 +82,15 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.image == null ? '포트폴리오 공유' : '리포트 공유')),
+    appBar: AppBar(
+      title: Text(
+        widget.notice != null
+            ? '운동 공유 미리보기'
+            : widget.image == null
+            ? '포트폴리오 공유'
+            : '리포트 공유',
+      ),
+    ),
     body: SafeArea(
       child: FutureBuilder<Uint8List>(
         future: _image,
@@ -88,7 +109,9 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const Text('선택한 기간의 움직임과 몸무게 변화가 포함돼요. 경로 위치는 포함하지 않아요.'),
+              Text(
+                widget.notice ?? '선택한 기간의 움직임과 몸무게 변화가 포함돼요. 경로 위치는 포함하지 않아요.',
+              ),
               const SizedBox(height: 16),
               Image.memory(
                 snapshot.data!,

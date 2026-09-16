@@ -1,9 +1,16 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../theme/app_theme.dart';
+import 'portfolio_share_screen.dart';
+
 import 'package:geolocator/geolocator.dart';
 
 import '../data/record_repository.dart';
+import '../data/portfolio_repository.dart' show averageKmh;
 import '../models/exercise_session.dart';
 import '../models/exercise_type.dart';
 import '../services/exercise_recorder.dart';
@@ -33,17 +40,48 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   void initState() {
     super.initState();
     _refresh();
+    _restoreType();
   }
+
+  Future<void> _restoreType() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final name = preferences.getString('recent_exercise_type');
+      if (mounted && !_typeTouched) {
+        setState(
+          () => _type =
+              ExerciseType.values.where((t) => t.name == name).firstOrNull ??
+              ExerciseType.lightWalk,
+        );
+      }
+    } catch (_) {
+      /* The default remains usable when preferences are unavailable. */
+    }
+  }
+
+  bool _typeTouched = false;
 
   void _refresh() {
     _history = widget.recorder.repository.history();
   }
 
   Future<void> _start() async {
+    _typeTouched = true;
     try {
       final weight = await widget.records.latestWeight(dateKey(DateTime.now()));
       if (!mounted) return;
       await widget.recorder.start(_type, weight);
+      if (widget.recorder.active) {
+        HapticFeedback.lightImpact();
+        try {
+          await (await SharedPreferences.getInstance()).setString(
+            'recent_exercise_type',
+            _type.name,
+          );
+        } catch (_) {
+          /* Recording is already saved. */
+        }
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -54,6 +92,25 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   }
 
   Future<void> _finish() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('운동을 종료할까요?'),
+        content: const Text('지금까지의 경로와 기록을 저장해요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('계속 운동'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('종료하고 저장'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    HapticFeedback.mediumImpact();
     await widget.recorder.finish();
     if (mounted) {
       setState(_refresh);
@@ -96,7 +153,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 600),
                     child: ListView(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(AppSpace.page),
                       children: [
                         if (recorder.issue case final issue?) ...[
                           Text(issue.message),
@@ -117,9 +174,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          '하루의 경로가 쌓여 나만의 movement portfolio가 돼요. 화면을 꺼도 기록이 이어져요.',
-                        ),
+                        const Text('운동을 고르고 시작하세요. 화면을 꺼도 기록이 이어져요.'),
                         const SizedBox(height: 16),
                         Wrap(
                           spacing: 8,
@@ -131,7 +186,11 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                                   selected: _type == type,
                                   onSelected: recorder.busy
                                       ? null
-                                      : (_) => setState(() => _type = type),
+                                      : (_) => setState(() {
+                                          _typeTouched = true;
+                                          _type = type;
+                                          HapticFeedback.selectionClick();
+                                        }),
                                 ),
                               )
                               .toList(),
@@ -164,7 +223,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                             }
                             if (!snapshot.hasData) {
                               return const Padding(
-                                padding: EdgeInsets.all(24),
+                                padding: EdgeInsets.all(AppSpace.page),
                                 child: Center(
                                   child: CircularProgressIndicator(),
                                 ),
@@ -217,42 +276,55 @@ class SessionStats extends StatelessWidget {
               MediaQuery.textScalerOf(context).scale(14) < 20
           ? 2
           : 1;
-      final width = (constraints.maxWidth - (columns - 1) * 16) / columns;
-      return Wrap(
-        spacing: 16,
-        runSpacing: 20,
-        children:
-            [
-                  ('운동 시간', elapsedLabel(session.elapsedSeconds)),
-                  (
-                    '거리',
-                    '${(session.distanceMeters / 1000).toStringAsFixed(2)} km',
+      final width =
+          (constraints.maxWidth - (columns - 1) * AppSpace.large) / columns;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: AppSpace.large,
+            runSpacing: AppSpace.medium,
+            children: [
+              for (final stat in [
+                (
+                  '거리',
+                  '${(session.distanceMeters / 1000).toStringAsFixed(2)} km',
+                ),
+                ('운동 시간', elapsedLabel(session.elapsedSeconds)),
+              ])
+                SizedBox(
+                  width: width,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        stat.$1,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      Text(
+                        stat.$2,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ],
                   ),
-                  ('평균 페이스', paceLabel(session.paceSeconds)),
-                  (
-                    '예상 소모',
-                    session.calories == null
-                        ? '— kcal'
-                        : '약 ${session.calories!.round()} kcal',
-                  ),
-                ]
-                .map(
-                  (stat) => SizedBox(
-                    width: width,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(stat.$1),
-                        const SizedBox(height: 4),
-                        Text(
-                          stat.$2,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                .toList(),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.medium),
+          Wrap(
+            spacing: AppSpace.large,
+            runSpacing: AppSpace.small,
+            children: [
+              Text('평균 ${averageKmh(session)?.toStringAsFixed(1) ?? '—'} km/h'),
+              Text('페이스 ${paceLabel(session.paceSeconds)}'),
+              Text(
+                session.calories == null
+                    ? '— kcal'
+                    : '약 ${session.calories!.round()} kcal',
+              ),
+            ],
+          ),
+        ],
       );
     },
   );
@@ -338,7 +410,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppSpace.page),
           children: [
             Text(
               '${dateKey(widget.session.startedAt.toLocal())} · ${widget.session.type.label}',
@@ -351,7 +423,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return const Padding(
-                    padding: EdgeInsets.all(24),
+                    padding: EdgeInsets.all(AppSpace.page),
                     child: Text('경로를 불러오지 못했어요. 화면을 다시 열어 주세요.'),
                   );
                 }
@@ -367,6 +439,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                       MovementAnalysisPanel(
                         session: widget.session,
                         load: widget.analysis!,
+                        summary: SessionStats(session: widget.session),
                       )
                     else ...[
                       ExerciseRoute(
@@ -374,15 +447,16 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                         height: 340,
                         selectedPoint: _selectedPoint,
                       ),
+                      const SizedBox(height: AppSpace.large),
+                      SessionStats(session: widget.session),
+                      const SizedBox(height: AppSpace.section),
                       SpeedAnalysis(
                         points: points,
                         onSelected: (p) => setState(() => _selectedPoint = p),
                       ),
                     ],
                     const SizedBox(height: 24),
-                    const Text('기록 당시 · 공유에 사용되는 수치'),
-                    const SizedBox(height: 12),
-                    SessionStats(session: widget.session),
+                    const Text('핵심 기록과 공유 카드는 기록 당시 수치를 사용해요.'),
                     const SizedBox(height: 32),
                     Text(
                       '공유 미리보기',
@@ -403,7 +477,9 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                     ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('시작·도착 지점 숨김'),
+                      title: Text(
+                        _hide ? '시작·종료 위치 200m 숨김 켜짐' : '시작·종료 위치 숨김 꺼짐',
+                      ),
                       subtitle: const Text(
                         '주변 200m를 숨겨요. 짧은 경로는 모두 숨겨질 수 있어요.',
                       ),
@@ -424,11 +500,6 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                         onPressed: _sharing || _deleting
                             ? null
                             : () async {
-                                final box =
-                                    buttonContext.findRenderObject()!
-                                        as RenderBox;
-                                final origin =
-                                    box.localToGlobal(Offset.zero) & box.size;
                                 setState(() => _sharing = true);
                                 ui.Image? mapImage;
                                 try {
@@ -440,12 +511,25 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                         .capture();
                                   }
                                   if (!mounted) return;
-                                  await shareExercise(
+                                  final bytes = await exerciseShareImage(
                                     widget.session,
                                     points,
                                     hideEndpoints: _hide,
-                                    origin: origin,
                                     mapImage: mapImage,
+                                  );
+                                  if (!context.mounted) return;
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => PortfolioShareScreen.image(
+                                        title: '운동 결과',
+                                        image: () async => bytes,
+                                        notice: _hide
+                                            ? '시작·종료 위치 200m 숨김 켜짐 · 짧은 경로는 모두 숨겨질 수 있어요.'
+                                            : '시작·종료 위치 숨김 꺼짐 · 전체 경로가 포함돼요.',
+                                        fileName:
+                                            'diligent-life-${widget.session.id}.png',
+                                      ),
+                                    ),
                                   );
                                 } catch (_) {
                                   if (context.mounted) {
@@ -488,9 +572,10 @@ class _RecordingView extends StatelessWidget {
     final pause = FilledButton.icon(
       onPressed: recorder.busy
           ? null
-          : recorder.recording
-          ? recorder.pause
-          : recorder.resume,
+          : () {
+              HapticFeedback.selectionClick();
+              recorder.recording ? recorder.pause() : recorder.resume();
+            },
       icon: Icon(recorder.recording ? Icons.pause : Icons.play_arrow),
       label: Text(recorder.recording ? '일시정지' : '재개'),
     );
@@ -503,27 +588,60 @@ class _RecordingView extends StatelessWidget {
       child: Column(
         children: [
           Expanded(
-            flex: 5,
+            flex: MediaQuery.textScalerOf(context).scale(14) > 20 ? 4 : 6,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: LayoutBuilder(
-                builder: (context, constraints) => ExerciseRoute(
-                  points: recorder.points,
-                  currentPosition: recorder.currentPosition,
-                  live: true,
-                  height: constraints.maxHeight,
+                builder: (context, constraints) => Stack(
+                  children: [
+                    ExerciseRoute(
+                      points: recorder.points,
+                      currentPosition: recorder.currentPosition,
+                      live: true,
+                      height: constraints.maxHeight,
+                    ),
+                    Positioned(
+                      left: AppSpace.medium,
+                      bottom: 36,
+                      right: AppSpace.medium,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Material(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(AppStyle.radius),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpace.medium,
+                              vertical: AppSpace.small,
+                            ),
+                            child: Text(
+                              !recorder.recording
+                                  ? '일시정지 · 재개하면 이어서 기록해요'
+                                  : recorder.waitingForGps
+                                  ? 'GPS 연결 중 · 기록은 유지돼요'
+                                  : (recorder.currentPosition?.accuracy ?? 0) >
+                                        30
+                                  ? 'GPS 신호 약함'
+                                  : 'GPS 연결됨',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
           Expanded(
-            flex: 6,
+            flex: MediaQuery.textScalerOf(context).scale(14) > 20 ? 6 : 4,
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerLow,
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
+                  top: Radius.circular(AppStyle.panelRadius),
                 ),
               ),
               child: Column(
@@ -555,7 +673,13 @@ class _RecordingView extends StatelessWidget {
                           SessionStats(session: session),
                           const SizedBox(height: 16),
                           Text(
-                            '현재 속도  ${speed == null ? '—' : speed.toStringAsFixed(1)} km/h · 약 5초 구간 평균',
+                            '현재 ${speed == null ? '—' : speed.toStringAsFixed(1)} km/h · GPS ${!recorder.recording
+                                ? '일시정지'
+                                : recorder.waitingForGps
+                                ? '연결 중'
+                                : (recorder.currentPosition?.accuracy ?? 0) > 30
+                                ? '신호 약함'
+                                : '연결됨'}',
                           ),
                           if (recorder.waitingForGps)
                             const Padding(
@@ -726,7 +850,7 @@ class _PortfolioOverview extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppStyle.radius),
       ),
       width: double.infinity,
       child: Column(

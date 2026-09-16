@@ -1,6 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 import '../data/record_repository.dart';
 import '../data/exercise_repository.dart';
 import '../data/portfolio_repository.dart';
@@ -99,29 +101,16 @@ class _TrendsScreenState extends State<TrendsScreen> {
 
   @override
   Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+    padding: const EdgeInsets.fromLTRB(
+      AppSpace.page,
+      AppSpace.medium,
+      AppSpace.page,
+      AppSpace.section,
+    ),
     children: [
       Text('나의 포트폴리오', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 8),
       const Text('지금까지의 움직임, 그리고 나의 변화.'),
-      if (widget.exercises != null)
-        TextButton.icon(
-          onPressed: () async {
-            await Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ReportScreen(
-                  repository: ReportRepository(
-                    widget.repository,
-                    widget.exercises!,
-                  ),
-                ),
-              ),
-            );
-            if (mounted) setState(_reload);
-          },
-          icon: const Icon(Icons.insights_outlined),
-          label: const Text('활동 리포트 · 이번 기간의 변화'),
-        ),
       const SizedBox(height: 20),
       Wrap(
         spacing: 8,
@@ -154,16 +143,6 @@ class _TrendsScreenState extends State<TrendsScreen> {
               icon: const Icon(Icons.chevron_right),
             ),
           ],
-        ),
-      if (widget.exercises != null)
-        TextButton.icon(
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => AllTimeMapScreen(repository: widget.exercises!),
-            ),
-          ),
-          icon: const Icon(Icons.map_outlined),
-          label: const Text('All-time Map · 지나온 모든 길'),
         ),
       const SizedBox(height: 28),
       FutureBuilder<PortfolioData>(
@@ -229,30 +208,20 @@ class _TrendsScreenState extends State<TrendsScreen> {
               if (summary.count == 0)
                 const Padding(
                   padding: EdgeInsets.only(top: 20),
-                  child: Text('이 기간에 완료한 GPS 운동이 없어요. 상단 운동 버튼에서 첫 경로를 남겨보세요.'),
+                  child: Text('이 기간에 완료한 GPS 운동이 없어요. 오늘 화면에서 첫 경로를 남겨보세요.'),
                 ),
               if (summary.count == 0 && data.weights.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 12),
                   child: Text('아직 이 기간의 기록이 없어요.'),
                 ),
-              if (_period == PortfolioPeriod.month ||
-                  _period == PortfolioPeriod.year)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => PortfolioShareScreen(
-                          data: data,
-                          title: _periodTitle,
-                        ),
-                      ),
-                    ),
-                    icon: const Icon(Icons.ios_share),
-                    label: const Text('이 기간 이미지로 공유'),
-                  ),
-                ),
+              const _Section('월별 움직임'),
+              const Text(
+                '선택한 기간에 포함된 운동만 합산해요.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              _MonthlySummary(key: ValueKey(_period), months: data.months),
               const _Section('몸무게의 변화'),
               if (change != null)
                 Padding(
@@ -271,13 +240,36 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 '실제 측정한 값만 표시해요. 측정하지 않은 날은 선을 잇지 않아요.',
                 style: TextStyle(fontSize: 12),
               ),
-              const _Section('월별 움직임'),
-              const Text(
-                '선택한 기간에 포함된 운동만 합산해요.',
-                style: TextStyle(fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              _MonthlySummary(key: ValueKey(_period), months: data.months),
+              const _Section('지나온 모든 길'),
+              if (widget.exercises != null)
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          AllTimeMapScreen(repository: widget.exercises!),
+                    ),
+                  ),
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('All-time Map · 지나온 모든 길'),
+                ),
+              const Text('이 기간의 대표 경로'),
+              if (data.representative case final session?) ...[
+                Text(
+                  '${dateKey(session.startedAt.toLocal())} · ${(session.distanceMeters / 1000).toStringAsFixed(2)} km',
+                ),
+                const SizedBox(height: 12),
+                ExerciseRoute(
+                  key: ValueKey(session.id),
+                  points: data.route,
+                  overview: true,
+                  height: 300,
+                ),
+                TextButton(
+                  onPressed: () => _open(session),
+                  child: const Text('이 운동 자세히 보기'),
+                ),
+              ] else
+                const Text('지도에 표시할 이동 경로가 아직 없어요.'),
               const _Section('나를 보여주는 기록'),
               if (data.longest case final session?)
                 ListTile(
@@ -344,25 +336,43 @@ class _TrendsScreenState extends State<TrendsScreen> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _open(session),
                 ),
-              const _Section('대표 경로'),
-              if (data.representative case final session?) ...[
-                Text(
-                  '${dateKey(session.startedAt.toLocal())} · ${(session.distanceMeters / 1000).toStringAsFixed(2)} km',
-                ),
-                const SizedBox(height: 12),
-                ExerciseRoute(
-                  key: ValueKey(session.id),
-                  points: data.route,
-                  overview: true,
-                  height: 300,
-                ),
-                TextButton(
-                  onPressed: () => _open(session),
-                  child: const Text('이 운동 자세히 보기'),
-                ),
-              ] else
-                const Text('지도에 표시할 이동 경로가 아직 없어요.'),
               const SizedBox(height: 12),
+              const _Section('기간 리포트'),
+              if (widget.exercises != null)
+                TextButton.icon(
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ReportScreen(
+                          repository: ReportRepository(
+                            widget.repository,
+                            widget.exercises!,
+                          ),
+                        ),
+                      ),
+                    );
+                    if (mounted) setState(_reload);
+                  },
+                  icon: const Icon(Icons.insights_outlined),
+                  label: const Text('활동 리포트 · 이번 기간의 변화'),
+                ),
+              if (_period == PortfolioPeriod.month ||
+                  _period == PortfolioPeriod.year)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PortfolioShareScreen(
+                          data: data,
+                          title: _periodTitle,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.ios_share),
+                    label: const Text('이 기간 이미지로 공유'),
+                  ),
+                ),
               const Text(
                 'GPS 거리·속도와 MET 칼로리는 추정치예요. 지도 로딩에는 인터넷 연결이 필요해요.',
                 style: TextStyle(fontSize: 12),
@@ -403,8 +413,7 @@ class _Section extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Divider(),
-        const SizedBox(height: 20),
+        const SizedBox(height: AppSpace.small),
         Text(title, style: Theme.of(context).textTheme.titleLarge),
       ],
     ),
