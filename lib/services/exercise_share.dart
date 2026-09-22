@@ -82,7 +82,7 @@ Future<Uint8List> exerciseShareImage(
     canvas.restore();
   }
 
-  metric('운동 시간', elapsedLabel(session.elapsedSeconds), 0, 636);
+  metric('총 기록 시간', elapsedLabel(session.elapsedSeconds), 0, 636);
   metric('평균 페이스', paceLabel(session.paceSeconds), 330, 636);
   metric(
     '예상 소모',
@@ -104,7 +104,7 @@ Future<Uint8List> exerciseShareImage(
     19,
   );
   label('오늘의 움직임이 나만의 포트폴리오로', 871, 22, bold: true);
-  label('GPS·MET 기반 추정치', 907, 14);
+  label('기록 거리 · 시간·kcal는 정지 포함 / 수동 일시정지 제외', 907, 14);
   final picture = recorder.endRecording();
   final image = await picture.toImage(720, 930);
   try {

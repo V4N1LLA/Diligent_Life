@@ -104,6 +104,65 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('best map and collapsed detail panels work at large text size', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final movement = analyze([
+      for (var i = 0; i <= 720; i++) fix(i, i * 2.0, speed: 2),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: MovementAnalysisPanel(
+              session: session(720),
+              tileProvider: TestTiles(),
+              load: (_) async => movement,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('평균 정확도'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('best-map-500')),
+      250,
+    );
+    await tester.tap(find.byKey(const ValueKey('best-map-500')));
+    await tester.pumpAndSettle();
+    final map = tester.widget<ExerciseRoute>(find.byType(ExerciseRoute));
+    expect(map.selectedSection!.meters, 500);
+    expect(map.selectedSection!.points.length, greaterThan(2));
+    expect(
+      map.selectedPoint!.timestamp,
+      movement.bests.firstWhere((b) => b.meters == 500).start.timestamp,
+    );
+    await tester.scrollUntilVisible(find.text('구간과 페이스'), 250);
+    await tester.tap(find.text('구간과 페이스'));
+    await tester.pumpAndSettle();
+    expect(find.text('500 m split'), findsOneWidget);
+    expect(find.text('전반부 vs 후반부 · 이동거리 절반씩'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('정지와 GPS 품질'),
+      250,
+      maxScrolls: 100,
+    );
+    await tester.tap(find.text('정지와 GPS 품질'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.textContaining('평균 정확도'), 200);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'missing GPS and failed analysis have useful empty and retry states',
     (tester) async {

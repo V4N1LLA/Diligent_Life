@@ -105,11 +105,13 @@ class ReportRecord {
     this.value,
     this.unit, {
     this.previous,
+    this.minimumImprovement = 0,
   });
   final String label, unit;
   final ReportEntry entry;
   final double value;
   final double? previous;
+  final double minimumImprovement;
   String get formatted => unit == '초'
       ? '${value.toStringAsFixed(1)}초'
       : '${value.toStringAsFixed(unit == 'km' ? 2 : 1)} $unit';
@@ -320,12 +322,26 @@ ActivityReport buildActivityReport(
       double value,
       String unit, {
       bool lower = false,
+      double minimumImprovement = 0,
     }) {
       if (value <= 0 || !value.isFinite) return;
       final old = winners[key];
+      final threshold = math.max(
+        minimumImprovement,
+        old?.minimumImprovement ?? 0,
+      );
       if (old == null ||
-          (lower ? value < old.value - 1e-6 : value > old.value + 1e-6)) {
-        final r = ReportRecord(label, e, value, unit, previous: old?.value);
+          (lower
+              ? old.value - value > math.max(1e-6, threshold)
+              : value > old.value + 1e-6)) {
+        final r = ReportRecord(
+          label,
+          e,
+          value,
+          unit,
+          previous: old?.value,
+          minimumImprovement: minimumImprovement,
+        );
         winners[key] = r;
         if (old != null && !e.session.startedAt.isBefore(window.start)) {
           improvements.add(r);
@@ -334,7 +350,7 @@ ActivityReport buildActivityReport(
     }
 
     record('distance', '최장 거리', e.session.distanceMeters / 1000, 'km');
-    record('time', '최장 시간', e.session.elapsedSeconds / 60, '분');
+    record('time', '최장 기록 시간', e.session.elapsedSeconds / 60, '분');
     if (e.kmh case final speed?) {
       record(
         'speed/${e.session.type.name}',
@@ -350,6 +366,7 @@ ActivityReport buildActivityReport(
         b.seconds,
         '초',
         lower: true,
+        minimumImprovement: b.improvementSeconds,
       );
     }
   }

@@ -192,7 +192,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     ),
                   ),
                   Text(
-                    '완료 GPS 운동의 기록 당시 합계 · 수동 운동은 중복 합산하지 않아요. kcal는 몸무게가 있는 ${d.current.calorieCount}/${d.current.count}회만 합산해요. 누락이 있으면 kcal 증감률을 표시하지 않아요.',
+                    '완료 GPS 운동의 기록 거리·총 기록 시간 합계 · 수동 운동은 중복 합산하지 않아요. kcal는 정지를 포함한 총 시간 기준이며 몸무게가 있는 ${d.current.calorieCount}/${d.current.count}회만 합산해요. 누락이 있으면 kcal 증감률을 표시하지 않아요.',
                   ),
                   _heading('이동속도와 페이스'),
                   const Text(
@@ -272,7 +272,9 @@ class _ReportScreenState extends State<ReportScreen> {
                       ),
                     ),
                   _heading('개인 최고와 이번 기간의 개선'),
-                  const Text('선택 기간 마지막 날까지의 개인 최고 · 처음 남긴 기록은 개선으로 세지 않아요.'),
+                  const Text(
+                    '선택 기간 마지막 날까지의 개인 최고 · 처음 남긴 기록과 GPS 오차 이내의 차이는 개선으로 세지 않아요.',
+                  ),
                   if (d.records.isEmpty) const Text('개인 최고 기록: 데이터 부족'),
                   for (final r in d.records)
                     TextButton(

@@ -287,10 +287,10 @@ class SessionStats extends StatelessWidget {
             children: [
               for (final stat in [
                 (
-                  '거리',
+                  '기록 거리',
                   '${(session.distanceMeters / 1000).toStringAsFixed(2)} km',
                 ),
-                ('운동 시간', elapsedLabel(session.elapsedSeconds)),
+                ('총 기록 시간', elapsedLabel(session.elapsedSeconds)),
               ])
                 SizedBox(
                   width: width,
@@ -315,12 +315,14 @@ class SessionStats extends StatelessWidget {
             spacing: AppSpace.large,
             runSpacing: AppSpace.small,
             children: [
-              Text('평균 ${averageKmh(session)?.toStringAsFixed(1) ?? '—'} km/h'),
+              Text(
+                '총 시간 평균 ${averageKmh(session)?.toStringAsFixed(1) ?? '—'} km/h',
+              ),
               Text('페이스 ${paceLabel(session.paceSeconds)}'),
               Text(
                 session.calories == null
                     ? '— kcal'
-                    : '약 ${session.calories!.round()} kcal',
+                    : '약 ${session.calories!.round()} kcal · 총 시간 기준',
               ),
             ],
           ),
@@ -456,7 +458,9 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                       ),
                     ],
                     const SizedBox(height: 24),
-                    const Text('핵심 기록과 공유 카드는 기록 당시 수치를 사용해요.'),
+                    const Text(
+                      '기록 거리·총 기록 시간은 목록·포트폴리오·공유에 동일하게 사용해요. 총 기록 시간은 정지·미분류를 포함하고 수동 일시정지는 제외해요. kcal는 이 총 시간과 운동 종류의 MET로 계산한 추정치예요.',
+                    ),
                     const SizedBox(height: 32),
                     Text(
                       '공유 미리보기',

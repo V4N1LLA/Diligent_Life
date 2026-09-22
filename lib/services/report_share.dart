@@ -36,11 +36,11 @@ Future<Uint8List> reportShareImage(ActivityReport report) async {
   final a = report.current, b = report.previous;
   text('이전 기간 → 이번 기간', 23, bold: true);
   text(
-    '거리  ${(b.meters / 1000).toStringAsFixed(2)} → ${(a.meters / 1000).toStringAsFixed(2)} km  (${report.delta(a.meters, b.meters)})',
+    '기록 거리  ${(b.meters / 1000).toStringAsFixed(2)} → ${(a.meters / 1000).toStringAsFixed(2)} km  (${report.delta(a.meters, b.meters)})',
     25,
   );
   text(
-    '시간  ${(b.seconds / 60).toStringAsFixed(0)} → ${(a.seconds / 60).toStringAsFixed(0)}분  (${report.delta(a.seconds.toDouble(), b.seconds.toDouble())})',
+    '총 기록 시간  ${(b.seconds / 60).toStringAsFixed(0)} → ${(a.seconds / 60).toStringAsFixed(0)}분  (${report.delta(a.seconds.toDouble(), b.seconds.toDouble())})',
     25,
   );
   text(
@@ -53,7 +53,7 @@ Future<Uint8List> reportShareImage(ActivityReport report) async {
     25,
   );
   text(
-    'kcal 계산 가능: 이전 ${b.calorieCount}/${b.count}회 · 이번 ${a.calorieCount}/${a.count}회',
+    '정지 포함 총 시간 기준 kcal: 이전 ${b.calorieCount}/${b.count}회 · 이번 ${a.calorieCount}/${a.count}회',
     19,
   );
   final change = report.weightChange;

@@ -144,7 +144,7 @@ void main() {
     expect(find.text('70.0 kg'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -500));
     await tester.pumpAndSettle();
-    expect(find.text('예상 소모 칼로리'), findsOneWidget);
+    expect(find.text('예상 칼로리 · 총 시간 기준'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -171,7 +171,10 @@ class _TrendsScreenState extends State<TrendsScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('함께 쌓인 거리', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                '함께 쌓인 기록 거리',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 4),
               Text(
                 '${(summary.meters / 1000).toStringAsFixed(2)} km',
@@ -184,9 +187,9 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 runSpacing: 20,
                 children: [
                   _Metric('운동 횟수', '${summary.count}회'),
-                  _Metric('총 운동 시간', elapsedLabel(summary.seconds)),
+                  _Metric('총 기록 시간', elapsedLabel(summary.seconds)),
                   _Metric(
-                    '예상 소모 칼로리',
+                    '예상 칼로리 · 총 시간 기준',
                     summary.calories == null
                         ? '— kcal'
                         : '약 ${summary.calories!.round()} kcal',
@@ -286,7 +289,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
               if (data.longestTime case final session?)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('가장 오래 움직인 운동'),
+                  title: const Text('가장 오래 기록한 운동'),
                   subtitle: Text(
                     '${elapsedLabel(session.elapsedSeconds)} · ${dateKey(session.startedAt.toLocal())}',
                   ),
@@ -319,7 +322,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                   child: Text('속도를 비교할 연속 이동 구간이 아직 없어요.'),
                 ),
               const Text(
-                '속도는 최소 5초 구간 평균으로 비교하고, GPS 공백과 비현실적 속도는 제외해요.',
+                '최고속도는 센서와 좌표가 일치하는 구간만 비교해요. 기록 시간에는 정지가 포함돼요.',
                 style: TextStyle(fontSize: 12),
               ),
               const _Section('최근 운동'),

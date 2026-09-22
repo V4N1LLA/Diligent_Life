@@ -28,6 +28,7 @@ class ExerciseRoute extends StatefulWidget {
     this.selectedPoint,
     this.sections,
     this.selectedSection,
+    this.fitSelectedSection = false,
     this.live = false,
     this.overview = false,
     this.interactive = true,
@@ -40,6 +41,7 @@ class ExerciseRoute extends StatefulWidget {
   final RoutePoint? selectedPoint;
   final List<SpeedSection>? sections;
   final SpeedSection? selectedSection;
+  final bool fitSelectedSection;
   final bool live, interactive, private, overview;
   final double height;
   // Injectable for deterministic, offline map tests.
@@ -81,11 +83,28 @@ class ExerciseRouteState extends State<ExerciseRoute> {
     }
     if (_ready &&
         widget.selectedPoint != null &&
-        oldWidget.selectedPoint != widget.selectedPoint) {
-      _controller.move(
-        routeLocation(widget.selectedPoint!),
-        _controller.camera.zoom,
-      );
+        (oldWidget.selectedPoint != widget.selectedPoint ||
+            (widget.fitSelectedSection &&
+                oldWidget.selectedSection != widget.selectedSection))) {
+      final selected = widget.selectedSection;
+      if (widget.fitSelectedSection &&
+          selected != null &&
+          selected.points.length > 1) {
+        _controller.fitCamera(
+          CameraFit.bounds(
+            bounds: LatLngBounds.fromPoints(
+              selected.points.map(routeLocation).toList(),
+            ),
+            padding: const EdgeInsets.all(40),
+            maxZoom: 17,
+          ),
+        );
+      } else {
+        _controller.move(
+          routeLocation(widget.selectedPoint!),
+          _controller.camera.zoom,
+        );
+      }
     }
     if (oldWidget.sections != widget.sections) {
       _speeds = widget.overview

@@ -44,7 +44,7 @@ Future<Uint8List> portfolioShareImage(PortfolioData data, String title) async {
     164,
     22,
   );
-  text('차곡차곡 쌓인 나의 움직임', 56, 218, 26);
+  text('차곡차곡 쌓인 기록 거리', 56, 218, 26);
   text(
     '${(data.summary.meters / 1000).toStringAsFixed(2)} km',
     56,
@@ -58,7 +58,7 @@ Future<Uint8List> portfolioShareImage(PortfolioData data, String title) async {
   }
 
   metric('운동 횟수', '${data.summary.count}회', 56, 366);
-  metric('총 운동 시간', elapsedLabel(data.summary.seconds), 466, 366);
+  metric('총 기록 시간', elapsedLabel(data.summary.seconds), 466, 366);
   metric(
     '예상 소모 칼로리',
     data.summary.calories == null
@@ -139,7 +139,7 @@ Future<Uint8List> portfolioShareImage(PortfolioData data, String title) async {
       20,
     );
   }
-  text('완료한 GPS 운동 · 거리·kcal는 추정치', 56, 1110, 19);
+  text('기록 거리 · 총 시간·kcal는 정지 포함 추정치', 56, 1110, 19);
   text(
     'kcal 계산 가능 ${data.summary.calorieCount}/${data.summary.count}회 · 경로 위치 미포함',
     56,

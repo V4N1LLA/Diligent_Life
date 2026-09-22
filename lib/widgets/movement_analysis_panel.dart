@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 
 import '../models/exercise_session.dart';
 import '../utils/movement_analysis.dart';
+import '../utils/gps.dart';
 import 'exercise_route.dart';
 
 String analysisDuration(double seconds) {
@@ -32,6 +33,7 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
   late Future<MovementAnalysis> _data;
   final _map = GlobalKey();
   int? _selected;
+  DistanceBest? _selectedBest;
   @override
   void initState() {
     super.initState();
@@ -40,6 +42,7 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
 
   void _reload(bool force) {
     _selected = null;
+    _selectedBest = null;
     _data = Future.sync(() => widget.load(force));
   }
 
@@ -66,14 +69,23 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
               points: data.route,
               height: 280,
               tileProvider: widget.tileProvider,
+              fitSelectedSection: _selectedBest != null,
               sections: [
                 for (final s in data.sections)
                   if (s.kind == MovementKind.moving) s.speed,
               ],
-              selectedPoint: _selected == null
-                  ? null
-                  : data.sections[_selected!].points.first,
-              selectedSection: _selected == null
+              selectedPoint:
+                  _selectedBest?.start ??
+                  (_selected == null
+                      ? null
+                      : data.sections[_selected!].points.first),
+              selectedSection: _selectedBest != null
+                  ? SpeedSection(
+                      _selectedBest!.points,
+                      _selectedBest!.meters.toDouble(),
+                      _selectedBest!.seconds,
+                    )
+                  : _selected == null
                   ? null
                   : data.sections[_selected!].speed,
             ),
@@ -109,7 +121,10 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
                           seconds >= _offset(s.start, widget.session) &&
                           seconds <= _offset(s.end, widget.session),
                     );
-                    setState(() => _selected = index < 0 ? null : index);
+                    setState(() {
+                      _selected = index < 0 ? null : index;
+                      _selectedBest = null;
+                    });
                   },
                   child: SizedBox(
                     height: 150,
@@ -160,15 +175,20 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
                     tooltip: '이전 구간',
                     onPressed: (_selected ?? 0) <= 0
                         ? null
-                        : () => setState(() => _selected = _selected! - 1),
+                        : () => setState(() {
+                            _selected = _selected! - 1;
+                            _selectedBest = null;
+                          }),
                     icon: const Icon(Icons.chevron_left),
                   ),
                   IconButton(
                     tooltip: '다음 구간',
                     onPressed: (_selected ?? -1) >= data.sections.length - 1
                         ? null
-                        : () =>
-                              setState(() => _selected = (_selected ?? -1) + 1),
+                        : () => setState(() {
+                            _selected = (_selected ?? -1) + 1;
+                            _selectedBest = null;
+                          }),
                     icon: const Icon(Icons.chevron_right),
                   ),
                   if (_selected != null)
@@ -212,7 +232,7 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
                 ),
                 _metric(
                   context,
-                  '최고 유효속도',
+                  '최고 신뢰속도',
                   '${data.fastest?.kmh.toStringAsFixed(1) ?? '—'} km/h',
                 ),
                 _metric(
@@ -237,24 +257,132 @@ class _MovementAnalysisPanelState extends State<MovementAnalysisPanel> {
                   final best = data.bests
                       .where((b) => b.meters == distance)
                       .firstOrNull;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text(
-                      '${distance == 1000 ? '1km' : '${distance}m'}  ·  ${best == null ? '연속 이동 기록이 더 필요해요' : '${analysisDuration(best.seconds)} · ${analysisDuration(best.paceSeconds)} /km'}',
-                    ),
-                  );
+                  final label =
+                      '${distance == 1000 ? '1km' : '${distance}m'}  ·  ${best == null ? '신뢰 가능한 연속 기록이 더 필요해요' : '${analysisDuration(best.seconds)} · ${paceLabel(best.paceSeconds)}'}';
+                  return best == null
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(label),
+                        )
+                      : TextButton.icon(
+                          key: ValueKey('best-map-$distance'),
+                          onPressed: () {
+                            setState(() {
+                              _selectedBest = best;
+                              _selected = null;
+                            });
+                            Scrollable.ensureVisible(
+                              _map.currentContext!,
+                              duration: const Duration(milliseconds: 250),
+                            );
+                          },
+                          icon: const Icon(Icons.map_outlined, size: 18),
+                          label: Text(label),
+                        );
                 },
               ),
             const SizedBox(height: 16),
-            Text(
-              data.rawAvailable
-                  ? '좌표를 부드럽게 보정한 약 6–12초 구간 평균이에요. 10초 이상 정지가 확인된 구간은 거리에서 제외해요.'
-                  : '원본 GPS가 없는 과거 기록은 저장된 경로로 분석해요. 정지 시간은 복원할 수 없어요.',
-            ),
             const Text(
-              '신호 공백·제외 구간·짧은 불확실 구간은 미분류예요. 수동 일시정지는 기록 시간에 포함되지 않아요. 운동 종류의 속도 범위를 벗어난 이동은 제외하지만 느린 차량을 구별할 수는 없어요.',
+              '최고 기록은 센서·좌표 속도가 일치하는 구간만 사용해요. GPS 오차 이내의 차이는 향상으로 표시하지 않아요.',
             ),
-            const Text('재분석 결과는 기록 당시 수치와 다를 수 있어요. 원본과 공유 수치는 그대로 보존해요.'),
+            ExpansionTile(
+              title: const Text('구간과 페이스'),
+              tilePadding: EdgeInsets.zero,
+              children: [
+                const Text(
+                  '유효 이동거리와 이동 시간 기준이에요. 정지·미분류는 페이스에서 제외하며, 끊긴 구간을 포함한 split은 표시해요.',
+                ),
+                for (final target in [500, 1000]) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '$target m split',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  for (final lap in data.splits.where(
+                    (s) => s.targetMeters == target,
+                  ))
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        '${lap.index}구간 · ${lap.meters.toStringAsFixed(0)}m${lap.partial ? ' · 남은 구간' : ''}',
+                      ),
+                      subtitle: Text(
+                        '${analysisDuration(lap.seconds)} · ${paceLabel(lap.paceSeconds)}${lap.interrupted ? ' · 정지/공백 포함' : ''}',
+                      ),
+                    ),
+                ],
+                if (data.halves.length == 2) ...[
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('전반부 vs 후반부 · 이동거리 절반씩'),
+                  ),
+                  for (var i = 0; i < 2; i++)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        '${i == 0 ? '전반부' : '후반부'} · ${data.halves[i].kmh.toStringAsFixed(1)} km/h',
+                      ),
+                      subtitle: Text(paceLabel(data.halves[i].paceSeconds)),
+                    ),
+                ],
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('속도 분포 · 이동 시간 기준'),
+                ),
+                for (var i = 0; i < 3; i++)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(['4 km/h 미만', '4–7 km/h', '7 km/h 이상'][i]),
+                    subtitle: Text(
+                      '${analysisDuration(data.speedDistribution[i])} · ${data.movingSeconds == 0 ? '0' : (data.speedDistribution[i] / data.movingSeconds * 100).toStringAsFixed(0)}%',
+                    ),
+                  ),
+              ],
+            ),
+            ExpansionTile(
+              title: const Text('정지와 GPS 품질'),
+              tilePadding: EdgeInsets.zero,
+              children: [
+                if (data.rawAvailable)
+                  Text(
+                    '확인된 정지 ${data.stopCount}회 · 총 ${analysisDuration(data.stoppedSeconds)} · 최장 ${analysisDuration(data.longestStop)}',
+                  ),
+                Text('데이터 품질: ${data.qualityLabel}'),
+                Text(
+                  '평균 정확도 ${data.meanAccuracy?.toStringAsFixed(1) ?? '—'} m · 원본 ${data.sampleCount} point',
+                ),
+                Text(
+                  '분석 제외 ${data.rejectedSamples} point · 기록 후보에서 제외한 이동 구간 ${data.lowConfidenceSections}개',
+                ),
+                if (data.filterDecisions.isNotEmpty)
+                  Text(
+                    '기록 당시: 채택 ${data.filterDecisions['accepted'] ?? 0} · 정지 노이즈 ${data.filterDecisions['stationary_noise'] ?? 0} · 품질 ${data.filterDecisions['quality'] ?? 0} · 속도 ${data.filterDecisions['implausible_speed'] ?? 0} · 시작 전 ${data.filterDecisions['before_segment'] ?? 0}',
+                  ),
+                Text(
+                  '기록 거리 ${(widget.session.distanceMeters / 1000).toStringAsFixed(2)} km / 유효 이동거리 ${(data.meters / 1000).toStringAsFixed(2)} km',
+                ),
+                Text(
+                  '분석 보정 차이 ${(data.meters - widget.session.distanceMeters).toStringAsFixed(1)} m · 정지 노이즈·좌표 보정·제외 기준이 달라요. 기록 거리는 원본 값으로 보존해요.',
+                ),
+                if (_selected case final index?) ...[
+                  Text(
+                    '선택 구간 센서 ${data.sections[index].sensorKmh?.toStringAsFixed(1) ?? '—'} / 좌표 ${data.sections[index].coordinateKmh?.toStringAsFixed(1) ?? '—'} / 평활 ${data.sections[index].kmh.toStringAsFixed(1)} km/h',
+                  ),
+                  if (!data.sections[index].recordEligible)
+                    const Text('이 구간은 최고 기록에 사용하지 않아요.'),
+                ],
+                Text(
+                  data.rawAvailable
+                      ? '정지는 10초 이상 근거가 있을 때만 확정해요. 신호 공백·품질 저하·불확실한 이동은 미분류로 남겨요. 화면 OFF 여부는 원본만으로 알 수 없어요.'
+                      : '원본 GPS가 없는 과거 기록은 경로만 분석해요. 정지 시간과 최고 기록 신뢰도를 확인할 수 없어요.',
+                ),
+              ],
+            ),
           ],
           Align(
             alignment: Alignment.centerLeft,
@@ -300,7 +428,10 @@ class _SpeedPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final span = _span(data, session);
-    final maxKmh = math.max(8.0, (data.fastest?.kmh ?? 0) * 1.2);
+    final maxKmh = math.max(
+      8.0,
+      data.sections.fold<double>(0, (v, s) => math.max(v, s.kmh)) * 1.2,
+    );
     final paint = Paint()
       ..strokeWidth = 1
       ..color = grid;

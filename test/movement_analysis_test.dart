@@ -25,13 +25,14 @@ RoutePoint fix(
   double meters, {
   int segment = 0,
   double accuracy = 5,
+  double? speed = 1.4,
 }) => RoutePoint(
   latitude: meters / 111194.92664455874,
   longitude: 127,
   timestamp: epoch.add(Duration(seconds: seconds)),
   accuracy: accuracy,
   segment: segment,
-  rawSpeed: 999,
+  rawSpeed: speed,
 );
 Map<String, Object?> raw(RoutePoint p) => {
   ...p.toMap(1),
@@ -69,6 +70,7 @@ void main() {
               : i <= 90
               ? (i - 30) * 1.4
               : 84,
+          speed: i <= 30 || i > 90 ? 0 : 1.4,
         ),
     ]);
     expect(result.movingSeconds, 60);
@@ -79,18 +81,15 @@ void main() {
     expect(result.fastest!.kmh, closeTo(5.04, .01));
     expect(result.bests, isEmpty);
   });
-  test(
-    'median removes alternating stationary jitter; raw sensor speed ignored',
-    () {
-      final result = analyze([
-        for (var i = 0; i <= 120; i++) fix(i, i.isEven ? -1 : 1),
-      ]);
-      expect(result.meters, 0);
-      expect(result.movingSeconds, 0);
-      expect(result.stoppedSeconds, 120);
-      expect(result.fastest, isNull);
-    },
-  );
+  test('invalid sensor speeds cannot turn stationary jitter into movement', () {
+    final result = analyze([
+      for (var i = 0; i <= 120; i++) fix(i, i.isEven ? -1 : 1, speed: 999),
+    ]);
+    expect(result.meters, 0);
+    expect(result.movingSeconds, 0);
+    expect(result.stoppedSeconds, 120);
+    expect(result.fastest, isNull);
+  });
   test('slow walking at mediocre accuracy extends windows instead of becoming stopped', () {
     final result = analyze([
       for (var i = 0; i <= 120; i++) fix(i, i.toDouble(), accuracy: 20),
@@ -107,7 +106,8 @@ void main() {
     ]);
     expect(result.movingSeconds, 120);
     expect(result.meters, closeTo(168, 3));
-    expect(result.fastest!.kmh, lessThan(7));
+    expect(result.fastest, isNull);
+    expect(result.lowConfidenceSections, greaterThan(0));
   });
   test('activity-specific average limits exclude vehicles and sustained excessive speed', () {
     final points = [for (var i = 0; i <= 120; i++) fix(i, i * 4.0)];
@@ -178,7 +178,9 @@ void main() {
     expect(legacy.unknownSeconds, 30);
   });
   test('fixed distance records interpolate exact endpoints for all three distances', () {
-    final result = analyze([for (var i = 0; i <= 720; i++) fix(i, i * 2.0)]);
+    final result = analyze([
+      for (var i = 0; i <= 720; i++) fix(i, i * 2.0, speed: 2),
+    ]);
     expect(result.bests.map((b) => b.meters), [100, 500, 1000]);
     for (final b in result.bests) {
       expect(b.seconds, closeTo(b.meters / 2, 1e-5));
