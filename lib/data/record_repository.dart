@@ -24,8 +24,12 @@ class RecordRepository {
     int oldVersion,
     int newVersion,
   ) async {
-    if (oldVersion < 2) await ExerciseRepository.createSchema(db);
-    if (oldVersion == 2) await ExerciseRepository.migrateV3(db);
+    if (oldVersion < 2 && newVersion >= 2) {
+      await ExerciseRepository.createSchema(db, includeRaw: newVersion >= 3);
+    }
+    if (oldVersion == 2 && newVersion >= 3) {
+      await ExerciseRepository.migrateV3(db);
+    }
   }
 
   static Future<void> createSchema(Database db, int version) async {
@@ -40,7 +44,9 @@ class RecordRepository {
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     )''');
-    if (version >= 2) await ExerciseRepository.createSchema(db);
+    if (version >= 2) {
+      await ExerciseRepository.createSchema(db, includeRaw: version >= 3);
+    }
   }
 
   Future<DailyRecord?> forDate(String date) async {

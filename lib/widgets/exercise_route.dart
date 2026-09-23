@@ -419,7 +419,7 @@ class ExerciseRouteState extends State<ExerciseRoute> {
                       _provider = null;
                       _retry++;
                     }),
-                    child: const Text('지도를 불러오지 못했어요 · 재시도'),
+                    child: const Text('지도를 불러오지 못했어요 · 다시 시도'),
                   ),
                 ),
               ),

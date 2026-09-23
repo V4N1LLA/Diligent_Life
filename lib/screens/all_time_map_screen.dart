@@ -74,6 +74,8 @@ class _AllTimeMapScreenState extends State<AllTimeMapScreen> {
             child: Text(
               _busy
                   ? '지나온 길을 모으고 있어요 · $_loaded/$_total'
+                  : _failed
+                  ? '지나온 길을 불러오지 못했어요.'
                   : '$_total개 운동의 발자취 · 경로는 운동별로 구분해요.\n빠른 표시를 위해 경로를 간략히 그리며 원본은 그대로 보관해요.',
             ),
           ),
@@ -86,6 +88,8 @@ class _AllTimeMapScreenState extends State<AllTimeMapScreen> {
           Expanded(
             child: _busy
                 ? const Center(child: CircularProgressIndicator())
+                : _failed
+                ? const SizedBox.shrink()
                 : _points.isEmpty
                 ? const Center(child: Text('운동을 기록하면 지나온 길이 여기에 모여요.'))
                 : LayoutBuilder(

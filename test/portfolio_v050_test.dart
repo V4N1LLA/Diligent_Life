@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'exercise_map_test.dart' show TestTiles;
 import 'record_repository_test.dart' show record;
+import 'support/legacy_portfolio_analyzer.dart';
 
 void main() {
   test('streamed fastest matches raw windows across pages, pauses and speed outliers', () {

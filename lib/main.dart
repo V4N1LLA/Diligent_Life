@@ -59,9 +59,12 @@ class _BootstrapState extends State<_Bootstrap> {
 
   Future<void> _open() async {
     setState(() => _failed = false);
+    RecordRepository? opened;
+    ExerciseRecorder? recovering;
     try {
       final preferences = await SharedPreferences.getInstance();
       final repository = await RecordRepository.open();
+      opened = repository;
       if (!mounted) {
         await repository.database.close();
         return;
@@ -70,6 +73,7 @@ class _BootstrapState extends State<_Bootstrap> {
       final recorder = ExerciseRecorder(
         ExerciseRepository(repository.database),
       );
+      recovering = recorder;
       await recorder.restore();
       if (!mounted) {
         recorder.dispose();
@@ -83,6 +87,8 @@ class _BootstrapState extends State<_Bootstrap> {
       });
       unawaited(reminders.restore());
     } catch (_) {
+      recovering?.dispose();
+      await opened?.database.close();
       if (mounted) setState(() => _failed = true);
     }
   }

@@ -86,6 +86,41 @@ void main() {
       table: await db.query(table, orderBy: 'id'),
   };
 
+  final legacySource = Platform.environment['LEGACY_BACKUP_DATA'];
+  test(
+    'existing v0.x exported backup prepares and round-trips without rewriting source',
+    () async {
+      final source = File(legacySource!);
+      final bytes = await source.readAsBytes();
+      final prepared = await backups.prepare(source);
+      try {
+        final expected = {
+          for (final table in backupTables)
+            table: await prepared.database.query(table, orderBy: 'id'),
+        };
+        await backups.replace(prepared);
+        expect(await snapshot(), expected);
+        final roundTrip = await backups.prepare(await export());
+        try {
+          for (final table in backupTables) {
+            expect(
+              await roundTrip.database.query(table, orderBy: 'id'),
+              expected[table],
+            );
+          }
+        } finally {
+          await roundTrip.dispose();
+        }
+        expect(await source.readAsBytes(), bytes);
+      } finally {
+        await prepared.dispose();
+      }
+    },
+    skip: legacySource == null
+        ? 'Set LEGACY_BACKUP_DATA to a private existing .diligent export.'
+        : false,
+  );
+
   test('full multi-page backup restores every column and original GPS, clears only derived cache', () async {
     final session = await seed();
     await exercises.portfolioAnalysis(session);
@@ -113,6 +148,10 @@ void main() {
     final lines = await file.readAsLines();
     final variants = <List<String>>[
       lines.sublist(0, lines.length - 1),
+      [...lines, lines[1]],
+      [lines.first, lines[1], ...lines.skip(1)],
+      [lines.first.replaceFirst('"schema":3', '"schema":99'), ...lines.skip(1)],
+      [...lines.take(lines.length - 1), '{}'],
       [
         lines.first.replaceFirst('"version":1', '"version":99'),
         ...lines.skip(1),
@@ -132,6 +171,10 @@ void main() {
           )
           .toList(),
     ];
+    final invalidUtf8 = File('${file.parent.path}/invalid-utf8.diligent');
+    await invalidUtf8.writeAsBytes([0xff, 0xfe, 0x00]);
+    await expectLater(backups.prepare(invalidUtf8), throwsA(anything));
+    expect(await snapshot(), before);
     for (var i = 0; i < variants.length; i++) {
       final invalid = File('${file.parent.path}/invalid-$i.diligent');
       await invalid.writeAsString('${variants[i].join('\n')}\n');

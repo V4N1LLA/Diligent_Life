@@ -150,7 +150,7 @@ void main() {
       db = await databaseFactoryFfi.openDatabase(
         inMemoryDatabasePath,
         options: OpenDatabaseOptions(
-          version: 2,
+          version: 3,
           onCreate: RecordRepository.createSchema,
           onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
         ),

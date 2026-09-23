@@ -118,7 +118,10 @@ class ExerciseRepository {
     return analysis;
   }
 
-  static Future<void> createSchema(DatabaseExecutor db) async {
+  static Future<void> createSchema(
+    DatabaseExecutor db, {
+    bool includeRaw = true,
+  }) async {
     await db.execute('''CREATE TABLE exercise_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       startedAt TEXT NOT NULL, endedAt TEXT, updatedAt TEXT NOT NULL,
@@ -138,13 +141,13 @@ class ExerciseRepository {
       longitude REAL NOT NULL CHECK(longitude BETWEEN -180 AND 180),
       timestamp TEXT NOT NULL, accuracy REAL NOT NULL CHECK(accuracy > 0),
       segment INTEGER NOT NULL,
-      rawSpeed REAL, cumulativeMeters REAL,
+      ${includeRaw ? 'rawSpeed REAL, cumulativeMeters REAL,' : ''}
       UNIQUE(sessionId, timestamp)
     )''');
     await db.execute(
       'CREATE INDEX session_route ON route_points(sessionId, id)',
     );
-    await createRawSchema(db);
+    if (includeRaw) await createRawSchema(db);
   }
 
   static Future<void> migrateV3(DatabaseExecutor db) async {
