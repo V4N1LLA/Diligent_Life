@@ -9,6 +9,28 @@ plugins {
 val releaseKeys = Properties()
 val releaseKeysFile = rootProject.file("key.properties")
 if (releaseKeysFile.exists()) releaseKeysFile.inputStream().use { releaseKeys.load(it) }
+fun signingValue(environment: String, property: String): String? =
+    providers.environmentVariable(environment).orNull ?: releaseKeys.getProperty(property)
+
+val releaseStoreFile = signingValue("DILIGENT_SIGNING_STORE_FILE", "storeFile")
+val releaseStorePassword = signingValue("DILIGENT_SIGNING_STORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("DILIGENT_SIGNING_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("DILIGENT_SIGNING_KEY_PASSWORD", "keyPassword")
+
+val validateReleaseSigning by tasks.registering {
+    doLast {
+        check(listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+            .all { !it.isNullOrBlank() }) {
+            "Release signing requires DILIGENT_SIGNING_* environment variables or android/key.properties."
+        }
+        check(rootProject.file(releaseStoreFile!!).isFile) { "Release keystore does not exist." }
+    }
+}
+tasks.configureEach {
+    if (name == "preReleaseBuild" || name == "validateSigningRelease") {
+        dependsOn(validateReleaseSigning)
+    }
+}
 
 android {
     namespace = "com.v4n1lla.diligent_life"
@@ -36,22 +58,17 @@ android {
     }
 
     signingConfigs {
-        if (releaseKeysFile.exists()) {
-            create("release") {
-                keyAlias = releaseKeys.getProperty("keyAlias")
-                keyPassword = releaseKeys.getProperty("keyPassword")
-                storeFile = rootProject.file(releaseKeys.getProperty("storeFile"))
-                storePassword = releaseKeys.getProperty("storePassword")
-            }
+        create("release") {
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+            storeFile = releaseStoreFile?.let { rootProject.file(it) }
+            storePassword = releaseStorePassword
         }
     }
 
     buildTypes {
         release {
-            // Without private release keys, artifacts are for local/CI validation only.
-            signingConfig = signingConfigs.getByName(
-                if (releaseKeysFile.exists()) "release" else "debug"
-            )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

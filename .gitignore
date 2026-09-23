@@ -7,6 +7,13 @@ coverage/
 .idea/
 android/local.properties
 android/key.properties
+**/key.properties
+.env
+.env.*
+*.p12
+*.pfx
+*.pem
+*.key
 *.jks
 *.keystore
 ios/Pods/

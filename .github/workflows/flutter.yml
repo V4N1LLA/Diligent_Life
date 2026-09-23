@@ -21,6 +21,17 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze
       - run: flutter test
-      # No production signing secrets: these release-mode artifacts validate compilation.
+      # Ephemeral CI identity only; these artifacts are never production releases.
+      - name: Configure disposable CI signing
+        shell: bash
+        run: |
+          ci_password="$(openssl rand -hex 32)"
+          echo "::add-mask::$ci_password"
+          export CI_SIGNING_PASSWORD="$ci_password"
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/ci-validation.jks" -storetype JKS -alias ci-validation -keyalg RSA -keysize 2048 -validity 2 -dname "CN=CI Validation" -storepass:env CI_SIGNING_PASSWORD -keypass:env CI_SIGNING_PASSWORD
+          echo "DILIGENT_SIGNING_STORE_FILE=$RUNNER_TEMP/ci-validation.jks" >> "$GITHUB_ENV"
+          echo "DILIGENT_SIGNING_STORE_PASSWORD=$ci_password" >> "$GITHUB_ENV"
+          echo "DILIGENT_SIGNING_KEY_ALIAS=ci-validation" >> "$GITHUB_ENV"
+          echo "DILIGENT_SIGNING_KEY_PASSWORD=$ci_password" >> "$GITHUB_ENV"
       - run: flutter build apk --release
       - run: flutter build appbundle --release
