@@ -1,5 +1,7 @@
 # 1.0.0-rc1 검증 기록
 
+이 문서는 RC1 당시의 검증 이력입니다. 현재 Android 1.0.0(12) 정식 서명 빌드와 S26(SM-S942N) 설치·기존 데이터 복원을 완료했으며, 기본 테스트 140개와 개인정보 기반 후속 테스트 2개가 통과했습니다. 최신 CI 결과와 남은 항목은 [최종 릴리즈 검증 기록](release-v1-final.md)을 참고하세요. 앞으로 실기기 테스트는 S26만 사용하고 S20은 사용하지 않습니다.
+
 2026-09-22 자동 검증 / 2026-09-22–23 실기기 검증, Windows / Flutter 3.47.2 / Dart 3.13.2. v0.9.0+10에서 1.0.0-rc1+11로 변경하며 DB schema 3과 backup format 1을 유지합니다.
 
 ## 완료
@@ -11,19 +13,19 @@
 - Light/Dark 자동 접근성 검사: 오늘·운동·설정·빈 리포트의 Android 터치 영역, 접근성 이름, 텍스트 대비. 기존 320px/2배 글꼴·포트폴리오·상세·공유·리포트 위젯 회귀 유지.
 - 권한 거부, GPS OFF, 재개, 지도 타일 오류와 재시도, 빈 상태, 저장 실패, 종료 확인, 공유 미리보기 회귀 통과.
 - 기존 12,005/24,001 표본 검사 유지. 추가 48,024 raw GPS / 24개 세션의 Portfolio·report·All-time Map 데이터 준비 검사 통과, 표시 좌표 12,000개. 최초 포트폴리오 1.7초(개별 실행)~11.8초(release 빌드 동시 실행), 모든 단계 30초 이내. 이 수치는 PC 테스트이며 실기기 프레임 성능 측정이 아님.
-- 실제 S26 로컬 사본 분석은 v0.9와 동일: 저장 2584.6326m / 분석 2414.2759m / 최고 5.9715km/h / 미분류 530.605초. 실기기 S26은 접근·조작하지 않음.
+- 실제 S26 로컬 사본 분석은 v0.9와 동일: 저장 2584.6326m / 분석 2414.2759m / 최고 5.9715km/h / 미분류 530.605초. RC1 당시에는 실기기 S26에 접근·조작하지 않았으며, 이후 1.0.0(12) 정식 서명 설치·복원을 완료함.
 - release APK 58.6MB / AAB 56.6MB 빌드 성공. APK signature 검증 성공, 개발용 키임. 앱 이름 Diligent Life, 패키지 com.v4n1lla.diligent_life, versionName 1.0.0-rc1, versionCode 11 확인.
 - SM-G988N에 release APK 업데이트 설치·실행 요청 성공. 설치 전 운동 8개 / 경로 2,546개 / raw 4,972개 / 일일 기록 1개를 별도 로컬 사본으로 보존. 기존 DB 삭제·초기화 없음.
 - production 코드 TODO/FIXME/debug print 없음. pubspec.lock 변경 및 새 dependency 없음.
 
-## 출시 전 미완료
+## RC1 당시 미완료 및 후속 상태
 
-- 정식 서명키와 배포 채널 확정. 현재 APK/AAB는 개발용 서명의 검증용 산출물.
+- RC1 APK/AAB는 개발용 서명의 검증용 산출물이었음. 이후 정식 서명키 생성과 1.0.0(12) 정식 서명 APK/AAB 빌드·서명 검증을 완료함. 서명키·자격 증명의 외부 안전 백업과 배포 채널/Play 설정은 남아 있음.
 - 실제 TalkBack 음성 탐색: 서비스 활성화까지 확인했으나 Samsung TalkBack 최초 설정이 전화 권한을 요구하여 완료하지 못함. 해당 권한은 허용하지 않았으며 접근성 설정은 원상 복구. 자동 semantic 검사 통과와 구분함.
-- RC 변경사항의 원격 GitHub Actions 실행. workflow에는 format/analyze/test/release APK/AAB 검사를 구성했으나 현재 작업은 아직 커밋·push하지 않았으므로 RC 원격 성공 상태는 없음.
-- iOS는 이번 Android RC 출시 대상 밖이며 macOS/Xcode·실기기 검증 전 배포하지 않음.
+- RC1 커밋 `e5bd197`의 원격 GitHub Actions는 [실행 35800839551](https://github.com/V4N1LLA/Diligent_Life/actions/runs/35800839551)에서 성공함. 현재 HEAD의 결과는 [최종 릴리즈 검증 기록](release-v1-final.md#remote-github-actions)에 기록함.
+- iOS는 Android 1.0.0 출시 대상 밖이며 macOS/Xcode·실기기 검증 전 배포하지 않음.
 
-## SM-G988N release 실기기 후속 결과 (9월 22–23일)
+## 과거 SM-G988N release 실기기 후속 결과 (9월 22–23일)
 
 - 오늘 → 운동 시작 → GPS 연결 → 짧은 화면 OFF → 강제 종료 → 재실행: 마지막 50초 체크포인트를 일시정지로 복원. 잠금 해제 대기 시간은 추가되지 않았고 명시적 재개 후 최종 85초로 종료.
 - 상세 → 운동 이미지 미리보기 → Android 공유창 진입·취소 확인. 외부 전송 없음.
@@ -35,6 +37,6 @@
 
 장시간 야외·제조사 절전 환경의 연속 기록과 실제 TalkBack 음성 탐색은 미검증입니다. 이번 후속 작업에는 앱 코드 변경이 없어 기존 142개 테스트와 APK/AAB 빌드 결과를 유지하며 검증 기록만 갱신했습니다.
 
-## 남은 blocker 재확인 (2026-09-23)
+## 과거 TalkBack 제한 확인 (2026-09-23)
 
-Samsung TalkBack 13.5.02.8 활성화 후 `com.samsung.android.accessibility.talkback.permission.PermissionRequestActivity`의 “휴대전화 액세스를 허용하시겠습니까?” 안내가 다시 전면에 표시됨을 확인했습니다. `READ_PHONE_STATE`는 허용되지 않은 상태입니다. Diligent Life의 화면·권한 요청이 아닌 TalkBack 자체 초기 설정 단계이므로 앱 코드 수정 대상이 아닙니다. 앱 내부의 실제 음성 탐색은 미완료로 유지하며 전화 권한은 허용하지 않았습니다. 접근성 서비스 목록(빈 값)과 accessibility_enabled=0을 복원했습니다. 정식 서명키는 생성하지 않았습니다.
+Samsung TalkBack 13.5.02.8 활성화 후 `com.samsung.android.accessibility.talkback.permission.PermissionRequestActivity`의 “휴대전화 액세스를 허용하시겠습니까?” 안내가 다시 전면에 표시됨을 확인했습니다. `READ_PHONE_STATE`는 허용되지 않은 상태였습니다. Diligent Life의 화면·권한 요청이 아닌 TalkBack 자체 초기 설정 단계이므로 앱 코드 수정 대상이 아닙니다. 앱 내부의 실제 음성 탐색은 미완료이며 전화 권한은 허용하지 않았습니다. 접근성 서비스 목록(빈 값)과 accessibility_enabled=0을 복원했습니다. 이 확인 당시 정식 서명키는 아직 생성하지 않았으며 이후 생성·빌드·설치 검증을 완료했습니다. 실제 TalkBack 탐색과 장시간 야외·절전 GPS 검증은 앞으로 S26에서 수행합니다.

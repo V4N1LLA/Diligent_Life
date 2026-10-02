@@ -1,6 +1,10 @@
 # Android release signing
 
-Release version: `1.0.0+12`. App logic and database formats are unchanged.
+Release version: `1.0.0+12` (display: `1.0.0 (12)`). Production-signed Android
+APK/AAB builds, signature checks and S26 (SM-S942N) installation with verified
+existing-data restoration are complete. App logic and database formats are
+unchanged. Status documentation updated on 2026-10-01; future device tests use S26
+only, and S20 is no longer used for testing.
 
 ## Local configuration
 
@@ -70,15 +74,26 @@ serve as the upload key, while Play signs delivered APKs with its app signing ke
 
 - Secure off-machine key/credential backup and distribution channel / Play setup.
 - Real TalkBack navigation and long outdoor recording under manufacturer power saving
-  remain unverified, as recorded in `release-rc1.md`.
-- Production-signed device migration and S20 smoke test are complete; see `release-v1-final.md`.
-- Remote GitHub Actions results remain pending; no tag, release, merge or push is
-  performed as part of this work.
+  with screen off / background operation remain unverified on S26. Automated
+  accessibility checks are complete. See `release-v1-final.md` for current status;
+  `release-rc1.md` retains historical S20 evidence.
+
+Production-signed S26 installation and existing-data restoration are complete.
+The 1.0.0 release commit `273bcb2` passed [Flutter checks run 35820608488](https://github.com/V4N1LLA/Diligent_Life/actions/runs/35820608488):
+format, analyze, tests and release APK/AAB builds all succeeded (checked 2026-10-01).
+Later 1.0.1 changes are not covered by that run. Production-signed 1.0.1 (13)
+was installed on S26 with all existing records preserved and the same certificate;
+see [battery validation](battery-v1.0.1.md). Details are recorded in
+[final release verification](release-v1-final.md#remote-github-actions). CI artifacts
+use the disposable validation key; CI success does not establish Play acceptance.
 
 ## Verification record — 2026-09-23
 
 - `flutter analyze`: no issues.
-- `flutter test`: 140 passed, 2 private-data regressions skipped (fixtures not supplied).
+- `flutter test`: base run 140 passed, 2 private-data regressions skipped because
+  fixtures were not supplied. Both subsequently passed with private inputs: the
+  backup and analysis follow-up ran 10 tests successfully, including those two.
+  CI still explicitly skips the private-data tests.
 - `flutter build apk --release`: succeeded; 61,430,439 bytes.
 - `flutter build appbundle --release`: succeeded; final clean rebuild 59,320,427 bytes.
 - APK `apksigner`: verified v2 signature, one RSA 3072 signer, `CN=Diligent Life Release`.

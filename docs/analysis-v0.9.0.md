@@ -10,7 +10,7 @@
 
 ## Private S26 regression
 
-S26 is a personal device: do not connect to or manipulate it for development without explicit instruction. Development handset: **SM-G988N / Galaxy S20 Ultra**.
+As of 2026-10-01, all future device tests use **S26 (SM-S942N)** only. S20 (SM-G988N / Galaxy S20 Ultra) is no longer used for testing. S26 production-signed 1.0.0 (12) installation and existing-data restoration are verified; see [final release verification](release-v1-final.md).
 
 The previously exported private `data.json` has arrays `exercise_sessions`, `route_points`, `raw_route_points`. Set `S26_REGRESSION_DATA` to that file before `flutter test`; the regression is explicitly skipped when the private export is absent. No personal coordinates or device backup files belong in the repository.
 

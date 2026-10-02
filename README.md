@@ -1,6 +1,8 @@
-# Diligent Life · 1.0.0-rc1 (11)
+# Diligent Life · 1.0.1 (13)
 
-운동·몸무게의 변화를 기기에 보관하는 개인 라이프 트래커입니다. 광고, 계정, 앱 서버가 없습니다. 이번 RC는 v0.9.0 기능을 유지하고 데이터 보존·복구·배포 준비를 검증합니다.
+운동·몸무게의 변화를 기기에 보관하는 개인 라이프 트래커입니다. 광고, 계정, 앱 서버가 없습니다. Android 1.0.0(12) 정식 서명 APK/AAB 빌드와 S26(SM-S942N)의 앱 설치·기존 데이터 복원 검증을 완료했습니다. DB schema 3과 backup format 1을 유지합니다.
+
+현재 버전 1.0.1(13)은 GPS 수집·분석 정책을 유지하면서 표시 타이머·지도 캐시·중복 체크포인트를 최적화합니다. 전체 149개 테스트(개인 입력 3개 포함), 실제 S26 16개 세션의 릴리즈 HEAD 대비 분석 회귀, 정적 분석과 정식 서명 APK 빌드·서명 검증이 통과했습니다. S26에 정식 서명 업데이트 설치와 운동·raw GPS·몸무게 데이터 전 항목 보존을 확인했습니다. 실제 배터리 절감률 측정은 남아 있습니다. 구현·검증 범위는 [배터리 최적화 1차 기록](docs/battery-v1.0.1.md)에 있습니다.
 
 ## 주요 기능
 
@@ -42,17 +44,21 @@ flutter build apk --release
 flutter build appbundle --release
 ```
 
-GitHub Actions는 format 검사, analyze, test, release APK/AAB 컴파일을 수행합니다. 개인 세션은 저장소·CI에 포함하지 않습니다. 필요하면 `S26_REGRESSION_DATA`에 기존 로컬 JSON export 경로를 지정하여 원본을 읽기만 하는 회귀 테스트를 실행합니다. synthetic 12,005/24,001 표본과 다중 세션 성능 테스트는 CI에도 유지합니다.
+기존 로컬 검증에서 `flutter analyze`와 기본 테스트 140개가 통과했습니다. 개인정보 기반 후속 테스트 2개도 입력을 제공한 별도 실행에서 통과했습니다. S26 복원 전후 일일 기록 2개·운동 11개·경로 3,366개·raw GPS 8,458개의 모든 원본 행과 열이 일치했습니다.
+
+GitHub Actions는 format 검사, analyze, test, release APK/AAB 컴파일을 수행합니다. 개인 세션은 저장소·CI에 포함하지 않아 개인정보 기반 테스트 3개는 CI에서 명시적으로 skip합니다. 로컬 후속 검증에는 `LEGACY_BACKUP_DATA`(기존 백업), `S26_REGRESSION_DATA`(기존 분석 회귀 입력), `S26_BATTERY_DATA`와 `S26_BATTERY_BASELINE`(최신 전체 세션과 릴리즈 HEAD 분석 기준값)을 제공합니다. synthetic 12,005/24,001 표본과 다중 세션 성능 테스트는 CI에도 유지합니다. 1.0.0 릴리즈의 원격 CI 이력은 [최종 릴리즈 검증 기록](docs/release-v1-final.md#remote-github-actions)을 참고하세요.
 
 ## 서명과 알려진 제한
 
-- `android/key.properties`가 없으면 release 모드 빌드도 개발용 키로 서명됩니다. **로컬/CI 검증용이며 정식 배포용이 아닙니다.** 정식 키·복구 정책과 배포 채널 확정은 1.0 출시 blocker입니다.
+- 정식 서명키로 Android 1.0.0(12) APK/AAB 빌드와 서명 검증을 완료했습니다. release 빌드는 서명 설정이 없거나 불완전하면 실패합니다. CI는 일회용 검증키를 사용하므로 CI 산출물은 정식 배포용이 아닙니다. 상세 설정은 [Android 릴리즈 서명](docs/android-release-signing.md)을 참고하세요.
 - 정식 서명은 Git에서 제외한 `android/key.properties`에 `storeFile`(절대 경로 권장), `storePassword`, `keyAlias`, `keyPassword`를 설정합니다. 키·비밀번호·APK/AAB는 저장소에 커밋하지 않습니다. 다른 서명의 기존 설치에는 덮어쓸 수 없으므로 삭제 전 반드시 백업해야 합니다.
 - GPS 정확도, 제조사 절전, 실내·화면 OFF 환경에 따라 누락·오차가 생깁니다. GPS가 없는 구간은 보간해 기록을 만들지 않습니다. 지도는 인터넷이 필요하며 실패 시 다시 시도할 수 있습니다.
-- 개발 실기기는 SM-G988N(Galaxy S20 Ultra)만 사용합니다. S26은 실사용 기기이며 별도 지시 없이 설치·조작하지 않습니다.
+- 앞으로 실기기 테스트는 S26(SM-S942N)만 사용합니다. S20(SM-G988N)은 더 이상 테스트에 사용하지 않으며 문서의 S20 결과는 과거 검증 이력입니다.
 - 자동 semantics·터치 영역 검사와 실제 TalkBack 음성 탐색은 구분합니다. 장시간 야외·백그라운드 운동과 실제 보조기술 사용자 검증은 별도 확인이 필요합니다.
 - iOS는 macOS/Xcode 빌드, 실기기 권한·백업 정책 검증 전 출시 대상에서 제외합니다.
 
 변경 이력은 [CHANGELOG](CHANGELOG.md), 과거 구현·검증 기록은 [개발 이력](docs/development-history.md)에 있습니다.
 
-이번 RC의 실제 검증 결과와 미완료 항목은 [RC 검증 기록](docs/release-rc1.md)에 있습니다.
+1.0.0 릴리즈 커밋 `273bcb2`의 [GitHub Actions 실행 35820608488](https://github.com/V4N1LLA/Diligent_Life/actions/runs/35820608488)은 성공했으며 format/analyze/test/release APK/AAB 단계가 모두 통과했습니다(2026-10-01 확인). 1.0.1 변경은 해당 실행 범위에 포함되지 않으며 커밋 SHA별 GitHub Actions 결과로 확인합니다.
+
+현재 완료 결과와 남은 항목은 [최종 릴리즈 검증 기록](docs/release-v1-final.md)에 있습니다. 남은 검증은 S26의 실제 TalkBack 음성 탐색과 장시간 야외·화면 OFF·백그라운드·제조사 절전 환경의 연속 GPS 기록입니다. 배포 준비에는 서명키·자격 증명의 안전한 외부 백업과 배포 채널/Play 설정이 남아 있습니다. [RC1 검증 기록](docs/release-rc1.md)은 당시 이력으로 보존합니다.

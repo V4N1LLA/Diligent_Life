@@ -14,6 +14,7 @@ import '../data/portfolio_repository.dart' show averageKmh;
 import '../models/exercise_session.dart';
 import '../models/exercise_type.dart';
 import '../services/exercise_recorder.dart';
+import '../services/recording_presentation.dart';
 import '../services/exercise_share.dart';
 import '../utils/dates.dart';
 import '../utils/gps.dart';
@@ -33,14 +34,60 @@ class ExerciseScreen extends StatefulWidget {
   State<ExerciseScreen> createState() => _ExerciseScreenState();
 }
 
-class _ExerciseScreenState extends State<ExerciseScreen> {
+class _ExerciseScreenState extends State<ExerciseScreen>
+    with WidgetsBindingObserver {
   ExerciseType _type = ExerciseType.lightWalk;
   late Future<List<ExerciseSession>> _history;
+  late final RecordingPresentation _presentation;
+  late final Widget _liveMap;
+  bool _routeVisible = false;
+  AppLifecycleState? _lifecycle;
   @override
   void initState() {
     super.initState();
+    _lifecycle = WidgetsBinding.instance.lifecycleState;
+    WidgetsBinding.instance.addObserver(this);
+    _presentation = RecordingPresentation(widget.recorder);
+    _liveMap = ValueListenableBuilder<RecordingMapSnapshot>(
+      valueListenable: _presentation.map,
+      builder: (context, snapshot, _) => LayoutBuilder(
+        builder: (context, constraints) => ExerciseRoute(
+          points: snapshot.points,
+          currentPosition: snapshot.position,
+          live: true,
+          height: constraints.maxHeight,
+        ),
+      ),
+    );
     _refresh();
     _restoreType();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _routeVisible =
+        (ModalRoute.of(context)?.isCurrent ?? true) &&
+        TickerMode.valuesOf(context).enabled;
+    _updateVisibility();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycle = state;
+    _updateVisibility();
+  }
+
+  void _updateVisibility() => _presentation.setVisible(
+    _routeVisible &&
+        (_lifecycle == null || _lifecycle == AppLifecycleState.resumed),
+  );
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _presentation.dispose();
+    super.dispose();
   }
 
   Future<void> _restoreType() async {
@@ -140,14 +187,19 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.recorder,
+    listenable: _presentation,
     builder: (context, _) {
       final recorder = widget.recorder;
       final session = recorder.live;
       return Scaffold(
         appBar: AppBar(title: Text(recorder.active ? '운동 기록 중' : 'GPS 운동')),
         body: recorder.active && session != null
-            ? _RecordingView(recorder: recorder, finish: _finish)
+            ? _RecordingView(
+                recorder: recorder,
+                finish: _finish,
+                map: _liveMap,
+                speed: _presentation.speedKmh,
+              )
             : SafeArea(
                 child: Center(
                   child: ConstrainedBox(
@@ -566,13 +618,20 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
 }
 
 class _RecordingView extends StatelessWidget {
-  const _RecordingView({required this.recorder, required this.finish});
+  const _RecordingView({
+    required this.recorder,
+    required this.finish,
+    required this.map,
+    required this.speed,
+  });
   final ExerciseRecorder recorder;
   final VoidCallback finish;
+  final Widget map;
+  final double? speed;
   @override
   Widget build(BuildContext context) {
     final session = recorder.live!;
-    final speed = recorder.currentSpeedKmh;
+    final speed = this.speed;
     final pause = FilledButton.icon(
       onPressed: recorder.busy
           ? null
@@ -598,12 +657,7 @@ class _RecordingView extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) => Stack(
                   children: [
-                    ExerciseRoute(
-                      points: recorder.points,
-                      currentPosition: recorder.currentPosition,
-                      live: true,
-                      height: constraints.maxHeight,
-                    ),
+                    map,
                     Positioned(
                       left: AppSpace.medium,
                       bottom: 36,

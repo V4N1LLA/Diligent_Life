@@ -8,17 +8,12 @@ import '../theme/app_theme.dart';
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 
 import '../models/exercise_session.dart';
 import '../utils/gps.dart';
+import 'route_polyline_cache.dart';
 
-Color speedColor(double kmh) => kmh < 4
-    ? const Color(0xff527d6b)
-    : kmh < 7
-    ? const Color(0xff527fa3)
-    : const Color(0xff8560aa);
-LatLng routeLocation(RoutePoint p) => LatLng(p.latitude, p.longitude);
+export 'route_polyline_cache.dart' show speedColor, routeLocation;
 
 class ExerciseRoute extends StatefulWidget {
   const ExerciseRoute({
@@ -64,18 +59,23 @@ class ExerciseRouteState extends State<ExerciseRoute> {
           maxCacheSize: 64 * 1024 * 1024,
         ),
       );
-  late List<SpeedSection> _speeds;
+  final _geometry = RoutePolylineCache();
+  void _syncGeometry() => _geometry.sync(
+    widget.points,
+    sections: widget.sections,
+    overview: widget.overview,
+    incremental: widget.live,
+  );
   @override
   void initState() {
     super.initState();
-    _speeds = widget.overview
-        ? []
-        : (widget.sections ?? speedSections(widget.points));
+    _syncGeometry();
   }
 
   @override
   void didUpdateWidget(ExerciseRoute oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncGeometry();
     if (widget.points.isEmpty && widget.currentPosition == null) {
       _ready = false;
       _provider = null;
@@ -106,17 +106,9 @@ class ExerciseRouteState extends State<ExerciseRoute> {
         );
       }
     }
-    if (oldWidget.sections != widget.sections) {
-      _speeds = widget.overview
-          ? []
-          : (widget.sections ?? speedSections(widget.points));
-    }
     if (oldWidget.points.length != widget.points.length ||
         oldWidget.points.firstOrNull != widget.points.firstOrNull ||
         oldWidget.points.lastOrNull != widget.points.lastOrNull) {
-      _speeds = widget.overview
-          ? []
-          : (widget.sections ?? speedSections(widget.points));
       if (!widget.live) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _fit();
@@ -213,37 +205,9 @@ class ExerciseRouteState extends State<ExerciseRoute> {
         ),
       );
     }
-    final lines = <Polyline>[];
-    var group = <LatLng>[];
-    for (var i = 0; i < points.length; i++) {
-      if (i > 0 && points[i].segment != points[i - 1].segment) {
-        if (group.length > 1) {
-          lines.add(
-            Polyline(
-              points: group,
-              color: const Color(0xff527d6b),
-              strokeWidth: 5,
-            ),
-          );
-        }
-        group = [];
-      }
-      group.add(routeLocation(points[i]));
-    }
-    if (group.length > 1) {
-      lines.add(
-        Polyline(points: group, color: const Color(0xff527d6b), strokeWidth: 5),
-      );
-    }
-    lines.addAll(
-      _speeds.map(
-        (s) => Polyline(
-          points: s.points.map(routeLocation).toList(),
-          color: speedColor(s.kmh),
-          strokeWidth: 5,
-        ),
-      ),
-    );
+    final lines = widget.selectedSection == null
+        ? _geometry.lines
+        : <Polyline>[..._geometry.lines];
     if (widget.selectedSection case final selected?) {
       lines.add(
         Polyline(

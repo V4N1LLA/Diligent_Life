@@ -108,7 +108,8 @@ class ExerciseRecorder extends ChangeNotifier {
   final Stopwatch _clock;
   ExerciseSession? session;
   final List<RoutePoint> _points = [];
-  List<RoutePoint> get points => List.unmodifiable(_points);
+  List<RoutePoint>? _pointSnapshot;
+  List<RoutePoint> get points => _pointSnapshot ??= List.unmodifiable(_points);
   RoutePoint? currentPosition;
   double? get currentSpeedKmh {
     if (!recording ||
@@ -153,7 +154,9 @@ class ExerciseRecorder extends ChangeNotifier {
   StreamSubscription<RoutePoint>? _subscription;
   StreamSubscription<bool>? _serviceSubscription;
   DateTime? _segmentStartedAt, _lastFixAt;
-  Timer? _timer;
+  Timer? _checkpointTimer;
+  int _lastCheckpointSeconds = 0;
+  bool _disposed = false;
   Future<void> _queue = Future.value();
   int _baseSeconds = 0;
   bool busy = false;
@@ -174,6 +177,7 @@ class ExerciseRecorder extends ChangeNotifier {
     if (active) throw StateError('Cannot restore during an active exercise');
     session = null;
     _points.clear();
+    _pointSnapshot = null;
     _clock.reset();
     _baseSeconds = 0;
     currentPosition = null;
@@ -203,7 +207,7 @@ class ExerciseRecorder extends ChangeNotifier {
     final operation = _queue.then((_) => action());
     _queue = operation.catchError((Object error) async {
       _clock.stop();
-      _timer?.cancel();
+      _checkpointTimer?.cancel();
       await _subscription?.cancel();
       _subscription = null;
       await _serviceSubscription?.cancel();
@@ -231,6 +235,7 @@ class ExerciseRecorder extends ChangeNotifier {
     await _location.prepare();
     session = await repository.start(type, weight, DateTime.now().toUtc());
     _points.clear();
+    _pointSnapshot = null;
     _filter = GpsFilter(maxSpeed: TrackingPolicy.maxSpeed(type));
     currentPosition = null;
     _baseSeconds = 0;
@@ -243,6 +248,7 @@ class ExerciseRecorder extends ChangeNotifier {
     _segmentStartedAt = DateTime.now().toUtc();
     _lastFixAt = null;
     _clock.start();
+    _lastCheckpointSeconds = elapsedSeconds;
     _subscription = _location.positions().listen(
       (point) {
         final receivedAt = DateTime.now().toUtc();
@@ -252,13 +258,15 @@ class ExerciseRecorder extends ChangeNotifier {
               return;
             }
             if (point.timestamp.isBefore(_segmentStartedAt!)) {
+              final checkpoint = live!;
               await repository.checkpoint(
-                live!,
+                checkpoint,
                 rawPoint: point.inSegment(_filter.segment),
                 receivedAt: receivedAt,
                 decision: 'before_segment',
                 filterVersion: TrackingPolicy.version,
               );
+              _checkpointSaved(checkpoint.elapsedSeconds);
               return;
             }
             final accepted = _filter.accept(point, receivedAt);
@@ -282,8 +290,10 @@ class ExerciseRecorder extends ChangeNotifier {
               filterVersion: TrackingPolicy.version,
             );
             session = next;
+            _checkpointSaved(next.elapsedSeconds);
             if (accepted != null) {
               _points.add(accepted.withDistance(next.distanceMeters));
+              _pointSnapshot = null;
             }
             notifyListeners();
           }),
@@ -295,19 +305,36 @@ class ExerciseRecorder extends ChangeNotifier {
     _serviceSubscription = _location.serviceEnabled().listen((enabled) {
       if (!enabled) _locationLost();
     }, onError: (Object error) => _locationLost());
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      notifyListeners();
-      if (elapsedSeconds % 5 == 0) {
-        unawaited(
-          _enqueue(() async {
-            if (recording) {
-              final next = live!.copyWith(updatedAt: DateTime.now().toUtc());
-              await repository.checkpoint(next);
-              session = next;
-            }
-          }),
-        );
-      }
+    _armCheckpoint();
+  }
+
+  void _checkpointSaved(int seconds) {
+    _lastCheckpointSeconds = seconds;
+    _armCheckpoint();
+  }
+
+  // Every GPS transaction already checkpoints the clock and totals atomically.
+  // Only wake the fallback when no such commit has covered the last five seconds.
+  void _armCheckpoint() {
+    _checkpointTimer?.cancel();
+    if (_disposed || !recording) return;
+    final remaining = (5 - (elapsedSeconds - _lastCheckpointSeconds)).clamp(
+      1,
+      5,
+    );
+    _checkpointTimer = Timer(Duration(seconds: remaining), () {
+      unawaited(
+        _enqueue(() async {
+          if (_disposed || !recording) return;
+          if (elapsedSeconds - _lastCheckpointSeconds >= 5) {
+            final next = live!.copyWith(updatedAt: DateTime.now().toUtc());
+            await repository.checkpoint(next);
+            session = next;
+            _lastCheckpointSeconds = next.elapsedSeconds;
+          }
+          _armCheckpoint();
+        }),
+      );
     });
   }
 
@@ -327,7 +354,7 @@ class ExerciseRecorder extends ChangeNotifier {
 
   Future<void> _pause() async {
     _clock.stop();
-    _timer?.cancel();
+    _checkpointTimer?.cancel();
     await _subscription?.cancel();
     _subscription = null;
     await _serviceSubscription?.cancel();
@@ -357,7 +384,7 @@ class ExerciseRecorder extends ChangeNotifier {
   Future<void> finish() => _action(() async {
     if (!active) return;
     _clock.stop();
-    _timer?.cancel();
+    _checkpointTimer?.cancel();
     await _subscription?.cancel();
     _subscription = null;
     await _serviceSubscription?.cancel();
@@ -374,7 +401,8 @@ class ExerciseRecorder extends ChangeNotifier {
   });
   @override
   void dispose() {
-    _timer?.cancel();
+    _disposed = true;
+    _checkpointTimer?.cancel();
     _clock.stop();
     unawaited(_subscription?.cancel());
     unawaited(_serviceSubscription?.cancel());
