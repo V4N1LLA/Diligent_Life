@@ -100,13 +100,13 @@ Future<Uint8List> exerciseShareImage(
   );
   label(
     hideEndpoints ? '시작·도착 주변 200m 숨김 · 표시는 공개 구간' : '전체 경로 · 시작과 도착 표시',
-    836,
+    800,
     19,
   );
-  label('오늘의 움직임이 나만의 포트폴리오로', 871, 22, bold: true);
-  label('기록 거리 · 시간·kcal는 정지 포함 / 수동 일시정지 제외', 907, 14);
+  label('오늘의 움직임이 나만의 포트폴리오로', 835, 22, bold: true);
+  label('기록 거리 · 시간·kcal는 정지 포함 / 수동 일시정지 제외', 875, 14);
   final picture = recorder.endRecording();
-  final image = await picture.toImage(720, 930);
+  final image = await picture.toImage(720, 900);
   try {
     return (await image.toByteData(format: ui.ImageByteFormat.png))!.buffer
         .asUint8List();

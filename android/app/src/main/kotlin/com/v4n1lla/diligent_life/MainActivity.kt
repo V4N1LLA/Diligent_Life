@@ -10,8 +10,15 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private var backupResult: MethodChannel.Result? = null
     private var exportPath: String? = null
+    private val steps by lazy { StepBridge(this) }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "diligent_life/steps")
+            .setMethodCallHandler { call, result -> steps.handle(call.method,result) }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "diligent_life/gallery")
+            .setMethodCallHandler { call, result ->
+                if(call.method == "save") GalleryBridge.save(this,call,result) else result.notImplemented()
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "diligent_life/backup")
             .setMethodCallHandler { call, result ->
                 if (backupResult != null) {
@@ -40,6 +47,11 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+        steps.permissionResult(requestCode)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

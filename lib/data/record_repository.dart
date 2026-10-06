@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/daily_record.dart';
 import '../utils/dates.dart';
 import 'exercise_repository.dart';
+import 'growth_repository.dart';
 
 class RecordRepository {
   RecordRepository(this.database);
@@ -12,7 +13,7 @@ class RecordRepository {
   static Future<RecordRepository> open() async => RecordRepository(
     await openDatabase(
       p.join(await getDatabasesPath(), 'diligent_life.db'),
-      version: 3,
+      version: 4,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: createSchema,
       onUpgrade: upgradeSchema,
@@ -29,6 +30,9 @@ class RecordRepository {
     }
     if (oldVersion == 2 && newVersion >= 3) {
       await ExerciseRepository.migrateV3(db);
+    }
+    if (oldVersion < 4 && newVersion >= 4) {
+      await GrowthRepository.createSchema(db);
     }
   }
 
@@ -47,6 +51,7 @@ class RecordRepository {
     if (version >= 2) {
       await ExerciseRepository.createSchema(db, includeRaw: version >= 3);
     }
+    if (version >= 4) await GrowthRepository.createSchema(db);
   }
 
   Future<DailyRecord?> forDate(String date) async {

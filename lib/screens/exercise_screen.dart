@@ -15,6 +15,7 @@ import '../models/exercise_session.dart';
 import '../models/exercise_type.dart';
 import '../services/exercise_recorder.dart';
 import '../services/recording_presentation.dart';
+import '../widgets/route_scrubber.dart';
 import '../services/exercise_share.dart';
 import '../utils/dates.dart';
 import '../utils/gps.dart';
@@ -403,7 +404,6 @@ class ExerciseDetailScreen extends StatefulWidget {
 class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
   bool _hide = true, _sharing = false, _deleting = false;
   final _shareMap = GlobalKey<ExerciseRouteState>();
-  RoutePoint? _selectedPoint;
   Future<void> _delete() async {
     if (_deleting || _sharing) return;
     setState(() => _deleting = true);
@@ -489,30 +489,29 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 24),
-                    if (widget.analysis != null)
-                      MovementAnalysisPanel(
-                        session: widget.session,
-                        load: widget.analysis!,
-                        summary: SessionStats(session: widget.session),
-                      )
-                    else ...[
-                      ExerciseRoute(
-                        points: points,
-                        height: 340,
-                        selectedPoint: _selectedPoint,
-                      ),
-                      const SizedBox(height: AppSpace.large),
-                      SessionStats(session: widget.session),
-                      const SizedBox(height: AppSpace.section),
-                      SpeedAnalysis(
-                        points: points,
-                        onSelected: (p) => setState(() => _selectedPoint = p),
-                      ),
-                    ],
+                    RouteScrubber(points: points),
                     const SizedBox(height: 24),
-                    const Text(
-                      '기록 거리·총 기록 시간은 목록·포트폴리오·공유에 동일하게 사용해요. 총 기록 시간은 정지·미분류를 포함하고 수동 일시정지는 제외해요. kcal는 이 총 시간과 운동 종류의 MET로 계산한 추정치예요.',
-                    ),
+                    SessionStats(session: widget.session),
+                    if (widget.analysis != null)
+                      ExpansionTile(
+                        title: const Text('상세 분석'),
+                        children: [
+                          MovementAnalysisPanel(
+                            session: widget.session,
+                            load: widget.analysis!,
+                            summary: SessionStats(session: widget.session),
+                          ),
+                        ],
+                      )
+                    else
+                      ExpansionTile(
+                        title: const Text('상세 분석'),
+                        children: [
+                          SpeedAnalysis(points: points, onSelected: (_) {}),
+                        ],
+                      ),
+                    const SizedBox(height: 24),
+                    const Text('오늘의 운동이 나만의 포트폴리오에 쌓였어요.'),
                     const SizedBox(height: 32),
                     Text(
                       '공유 미리보기',

@@ -17,9 +17,14 @@ import 'screens/trends_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/reminder_service.dart';
 import 'theme/app_theme.dart';
+import 'services/theme_controller.dart';
+import 'services/step_service.dart';
+import 'data/growth_repository.dart';
+import 'screens/growth_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(themeController.load());
   runApp(const DiligentLifeApp());
 }
 
@@ -27,16 +32,19 @@ class DiligentLifeApp extends StatelessWidget {
   const DiligentLifeApp({super.key, this.home});
   final Widget? home;
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Diligent Life',
-    debugShowCheckedModeBanner: false,
-    theme: appTheme(Brightness.light),
-    darkTheme: appTheme(Brightness.dark),
-    themeMode: ThemeMode.system,
-    locale: const Locale('ko'),
-    supportedLocales: const [Locale('ko'), Locale('en')],
-    localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    home: home ?? const _Bootstrap(),
+  Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
+    valueListenable: themeController,
+    builder: (context, mode, _) => MaterialApp(
+      title: 'Diligent Life',
+      debugShowCheckedModeBanner: false,
+      theme: appTheme(Brightness.light),
+      darkTheme: appTheme(Brightness.dark),
+      themeMode: mode,
+      locale: const Locale('ko'),
+      supportedLocales: const [Locale('ko'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      home: home ?? const _Bootstrap(),
+    ),
   );
 }
 
@@ -75,6 +83,7 @@ class _BootstrapState extends State<_Bootstrap> {
       );
       recovering = recorder;
       await recorder.restore();
+      await StepService().restore();
       if (!mounted) {
         recorder.dispose();
         await repository.database.close();
@@ -100,6 +109,7 @@ class _BootstrapState extends State<_Bootstrap> {
         repository: _repository!,
         reminders: _reminders!,
         recorder: _recorder,
+        growth: GrowthRepository(_repository!.database),
       );
     }
     return Scaffold(
@@ -126,10 +136,12 @@ class AppShell extends StatefulWidget {
     required this.repository,
     required this.reminders,
     this.recorder,
+    this.growth,
   });
   final RecordRepository repository;
   final ReminderService reminders;
   final ExerciseRecorder? recorder;
+  final GrowthRepository? growth;
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -239,6 +251,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   revision: _revision,
                   onSaved: () => setState(() => _revision++),
                   openExercise: _openExercise,
+                  growth: widget.growth == null
+                      ? null
+                      : MovementHomeSummary(
+                          repository: widget.growth!,
+                          visible: _index == 0,
+                          revision: _revision,
+                        ),
                 ),
                 TrendsScreen(
                   repository: widget.repository,

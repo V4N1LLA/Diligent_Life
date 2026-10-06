@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/reminder_service.dart';
 import '../app_info.dart';
+import '../services/theme_controller.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, required this.reminders, this.onBackup});
@@ -15,6 +16,33 @@ class SettingsScreen extends StatelessWidget {
       children: [
         Text('설정', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 24),
+        ValueListenableBuilder<ThemeMode>(
+          valueListenable: themeController,
+          builder: (context, mode, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('테마'),
+              DropdownButtonFormField<ThemeMode>(
+                initialValue: mode,
+                key: ValueKey(mode),
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: '앱 테마'),
+                items: const [
+                  DropdownMenuItem(
+                    value: ThemeMode.system,
+                    child: Text('시스템 설정 따르기'),
+                  ),
+                  DropdownMenuItem(value: ThemeMode.light, child: Text('라이트')),
+                  DropdownMenuItem(value: ThemeMode.dark, child: Text('다크')),
+                ],
+                onChanged: (value) {
+                  if (value != null) themeController.select(value);
+                },
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('매일 기록 알림'),

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0+14
+
+- GPS와 분리된 Android step counter 만보기, 오늘 목표·최근 7일·주/월 걸음 통계, health foreground service 및 재시작/재부팅/reset/중복 처리. 자정 수신 공백은 구분해 표시.
+- Today의 운동 CTA를 유지하면서 compact Lv/XP/타이틀과 주간 요약 추가. 기술 정보는 접힌 상세 분석으로 이동.
+- 실제 sample에 맞추는 지도/그래프 scrubber와 양쪽 구간 handle, 평균 속도/페이스, 제한된 haptic. 기존 분석 결과 유지.
+- 날짜별 상한과 versioned UNIQUE 보상 원장의 XP, 일일/주간 Quest, 6개 Achievement와 1개 장착 Title. 체중·칼로리·수동 입력 XP 없음.
+- 운동 4:5 및 성취 1:1 이미지 preview 후 공유/갤러리 저장, 시작·종료점 위치 보호 유지. 시스템/라이트/다크 로컬 저장.
+- DB schema 4에 새 테이블만 추가, backup format 2 및 이전 format 1 호환, 기기 sensor cursor 제외. 탐험은 확장 가능한 모델만 추가.
+- S26 정식 서명 업데이트와 기존 전체 데이터 보존, 실제 걸음 증가·화면 OFF/GPS 동시 기록·재부팅 복원·테마·scrubber·공유·갤러리 저장 확인. 실제 보행 대비 정확도·자정·장시간 배터리 비교는 남음. 범위와 제한은 [1.1.0 UX 기록](docs/ux-v1.1.0.md) 참고.
+
 ## 1.0.1+13
 
 - GPS bestForNavigation·약 2초 수집, raw 원본 저장, 필터·거리·100m/500m/1km 분석 정책, foreground service와 wake lock 유지. 새 dependency·DB·백업 형식 변경 없음.

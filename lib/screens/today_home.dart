@@ -21,8 +21,10 @@ class TodayHome extends StatefulWidget {
     required this.openExercise,
     required this.revision,
     this.recorder,
+    this.growth,
   });
   final RecordRepository repository;
+  final Widget? growth;
   final ExerciseRecorder? recorder;
   final VoidCallback onSaved, openExercise;
   final int revision;
@@ -175,6 +177,11 @@ class _TodayHomeState extends State<TodayHome> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (widget.growth != null) widget.growth!,
+              if (history.length >= 2)
+                Text(
+                  '지난 운동보다 ${((history[0].elapsedSeconds - history[1].elapsedSeconds) / 60).abs().round()}분 ${history[0].elapsedSeconds >= history[1].elapsedSeconds ? '더' : '덜'} 움직였어요.',
+                ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('몸무게'),

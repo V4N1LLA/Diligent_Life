@@ -66,10 +66,13 @@ void main() {
         ),
       );
       Future<void> settle() async {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 30)),
-        );
-        await tester.pump(const Duration(milliseconds: 350));
+        // Document I/O and the native step pause/resume reply in the real zone.
+        for (var i = 0; i < 3; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pump(const Duration(milliseconds: 350));
+        }
       }
 
       await tester.tap(find.text('백업 파일 가져오기'));

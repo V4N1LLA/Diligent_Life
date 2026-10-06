@@ -198,7 +198,7 @@ void main() {
         final codec = await ui.instantiateImageCodec(bytes);
         final frame = await codec.getNextFrame();
         expect(frame.image.width, 720);
-        expect(frame.image.height, 930);
+        expect(frame.image.height, 900);
         frame.image.dispose();
         codec.dispose();
       });

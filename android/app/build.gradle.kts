@@ -1,4 +1,5 @@
 import java.util.Properties
+import kotlin.Unit as KotlinUnit
 
 plugins {
     id("com.android.application")
@@ -85,4 +86,14 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
+tasks.register<JavaExec>("stepPolicyChecks") {
+    dependsOn("compileDebugUnitTestKotlin")
+    mainClass.set("com.v4n1lla.diligent_life.StepCounterPolicyChecksKt")
+    doFirst {
+        classpath = files(tasks.named("compileDebugUnitTestKotlin").get().outputs.files,
+            tasks.named("compileDebugKotlin").get().outputs.files,
+            KotlinUnit::class.java.protectionDomain.codeSource.location)
+    }
 }

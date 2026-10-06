@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/backup_repository.dart';
 import '../services/backup_files.dart';
+import '../services/step_service.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({
@@ -75,6 +76,7 @@ class _BackupScreenState extends State<BackupScreen> {
           content: SingleChildScrollView(
             child: Text(
               '백업 생성: ${prepared!.createdAt}\n일상 기록 ${counts['daily_records']}개\n운동 ${counts['exercise_sessions']}개\n경로 ${counts['route_points']}개 · 원본 GPS ${counts['raw_route_points']}개\n\n'
+              '${counts.containsKey('daily_steps') ? '걸음·XP·타이틀도 백업의 기록으로 교체해요.' : '이전 버전 백업이므로 현재 걸음·XP·타이틀은 유지해요.'}\n'
               '현재 운동·몸무게·경로를 모두 교체해요. 병합하지 않으며 기존 기록은 남지 않아요. 먼저 현재 데이터를 내보내 주세요.\n알림 설정은 유지해요. 백업의 미완료 운동은 일시정지 상태로 복원돼요.',
             ),
           ),
@@ -95,8 +97,14 @@ class _BackupScreenState extends State<BackupScreen> {
         return;
       }
       if (!widget.canImport()) throw StateError('운동 또는 입력이 진행 중이에요.');
-      await widget.repository.replace(prepared);
-      await widget.onImported();
+      final steps = StepService();
+      try {
+        await steps.suspend();
+        await widget.repository.replace(prepared);
+        await widget.onImported();
+      } finally {
+        await steps.resume();
+      }
       if (mounted) setState(() => _message = '백업의 전체 기록을 복원했어요.');
     } catch (_) {
       if (mounted) {
@@ -120,7 +128,7 @@ class _BackupScreenState extends State<BackupScreen> {
           const Text('내 기록을 오래 간직하기', style: TextStyle(fontSize: 24)),
           const SizedBox(height: 16),
           const Text(
-            '몸무게와 일상 기록, 모든 운동과 전체 경로, 제외된 GPS 원본까지 하나의 파일에 보관해요. 앱 서버나 계정은 사용하지 않아요.',
+            '몸무게와 일상 걸음, 운동과 전체 경로, GPS 원본, XP와 타이틀을 하나의 파일에 보관해요. 앱 서버나 계정은 사용하지 않아요.',
           ),
           const SizedBox(height: 16),
           const Text(

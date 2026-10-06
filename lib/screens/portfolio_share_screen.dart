@@ -1,7 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter/services.dart';
 
 import '../data/portfolio_repository.dart';
 import '../services/portfolio_share.dart';
@@ -80,6 +79,32 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
     }
   }
 
+  Future<void> _save(Uint8List bytes) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await const MethodChannel('diligent_life/gallery').invokeMethod<String>(
+        'save',
+        {'bytes': bytes, 'name': widget.fileName ?? 'diligent-life-card.png'},
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('갤러리의 Diligent Life 폴더에 저장했어요.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = '이미지를 저장하지 못했어요. Android 10 이상에서 저장 공간을 확인해 주세요.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -127,6 +152,12 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
                   icon: const Icon(Icons.ios_share),
                   label: const Text('이미지 공유'),
                 ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _save(snapshot.data!),
+                icon: const Icon(Icons.save_alt),
+                label: const Text('갤러리에 저장'),
               ),
             ],
           );
