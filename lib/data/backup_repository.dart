@@ -297,6 +297,21 @@ class BackupRepository {
           last = rows.last['id'] as int;
         }
       }
+      final exploration = await txn.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='exploration_events'",
+      );
+      if (exploration.isNotEmpty) {
+        // Legacy replacement retains unlocks, but replaces their source IDs.
+        // A deleted source in a full backup can also be reused on a new device.
+        // Keep rewards/cells; never attribute them to an unrelated future workout.
+        await txn.update(
+          'exploration_events',
+          {'sourceSessionId': null},
+          where: tables.contains('exploration_events')
+              ? "sourceSessionId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM exercise_sessions WHERE exercise_sessions.id = exploration_events.sourceSessionId AND status = 'finished')"
+              : 'sourceSessionId IS NOT NULL',
+        );
+      }
     });
   }
 

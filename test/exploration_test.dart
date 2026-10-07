@@ -412,6 +412,54 @@ void main() {
       (before['xp_ledger']!).fold<int>(0, (n, r) => n + (r['xp'] as int)),
     );
   });
+  for (final legacy in [false, true]) {
+    test(
+      'restore detaches stale source IDs without losing cells or XP; legacy=$legacy',
+      () async {
+        final db = await database();
+        addTearDown(db.close);
+        final exercises = ExerciseRepository(db),
+            repo = ExplorationRepository(exercises);
+        final s = await seed(db);
+        await repo.discover(s);
+        final now = epoch.add(const Duration(days: 1));
+        final xp = (await GrowthRepository(db).refresh(now)).xp;
+        final backup = BackupRepository(db);
+        late final PreparedBackup staged;
+        if (legacy) {
+          final old = await databaseFactoryFfi.openDatabase(
+            inMemoryDatabasePath,
+            options: OpenDatabaseOptions(
+              version: 3,
+              singleInstance: false,
+              onCreate: RecordRepository.createSchema,
+            ),
+          );
+          addTearDown(old.close);
+          // A different restored workout happens to have the same integer ID.
+          await old.insert(
+            'exercise_sessions',
+            session(1).copyWith(distanceMeters: 0).toMap(),
+          );
+          final file = await BackupRepository(old).export();
+          addTearDown(() => file.parent.delete(recursive: true));
+          staged = await backup.prepare(file);
+        } else {
+          await exercises.deleteFinished(s.id);
+          final file = await backup.export();
+          addTearDown(() => file.parent.delete(recursive: true));
+          staged = await backup.prepare(file);
+        }
+        addTearDown(staged.dispose);
+        await backup.replace(staged);
+        final rows = await db.query('exploration_events');
+        expect(rows.single['regionId'], cell.id);
+        expect(rows.single['sourceSessionId'], isNull);
+        expect((await repo.summary(now, sessionId: 1)).newIds, isEmpty);
+        expect((await GrowthRepository(db).refresh(now)).xp, xp);
+      },
+    );
+  }
   test('large route calculation and 10k-cell camera queries are bounded by viewport/LOD', () {
     final rows = path(count: 24001), s = session(1, seconds: 48000);
     final timer = Stopwatch()..start();
