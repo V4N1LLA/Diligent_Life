@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:sqflite/sqflite.dart';
 
 import '../models/growth.dart';
+import '../models/exploration.dart';
 import '../utils/dates.dart';
 
 class GrowthRepository {
@@ -97,6 +98,29 @@ class GrowthRepository {
         }
       }
 
+      final explorationDays = <String, int>{};
+      final regions = <String>{};
+      for (final row in await txn.query('exploration_events', orderBy: 'id')) {
+        final id = row['regionId'] as String;
+        final at = DateTime.tryParse(row['discoveredAt'] as String)?.toLocal();
+        if (row['modelVersion'] != explorationRuleVersion ||
+            row['eventKey'] != 'exploration:$id' ||
+            ExplorationCell.parse(id) == null ||
+            at == null ||
+            at.isAfter(now) ||
+            !regions.add(id)) {
+          continue;
+        }
+        final date = dateKey(at);
+        explorationDays[date] = (explorationDays[date] ?? 0) + 1;
+        await award('exploration.cell:$id:v1', 10);
+      }
+      for (final entry in explorationDays.entries) {
+        final quest = explorationQuest(entry.value);
+        if (quest.complete) {
+          await award('${quest.id}:${entry.key}', quest.reward);
+        }
+      }
       final weeks = <String, int>{};
       for (final d in days.values) {
         await award('activity:${d.date}:v1', d.baseXp);
@@ -114,7 +138,10 @@ class GrowthRepository {
           await award('quest.weekly.workouts_3.v1:${w.key}', 80);
         }
       }
-      final all = achievements(days.values.toList(), longest);
+      final all = [
+        ...achievements(days.values.toList(), longest),
+        ...explorationAchievements(regions.length),
+      ];
       for (final a in all) {
         if (a.complete) await award(a.id, a.reward);
       }
@@ -133,6 +160,7 @@ class GrowthRepository {
         xp: ledger.fold<int>(0, (sum, r) => sum + (r['xp'] as int)),
         quests: [
           ...dailyQuests(days[today] ?? ActivityDay(today)),
+          explorationQuest(explorationDays[today] ?? 0),
           GoalProgress(
             'quest.weekly.workouts_3.v1',
             '이번 주 운동 3회',

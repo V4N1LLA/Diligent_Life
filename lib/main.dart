@@ -20,6 +20,7 @@ import 'theme/app_theme.dart';
 import 'services/theme_controller.dart';
 import 'services/step_service.dart';
 import 'data/growth_repository.dart';
+import 'data/exploration_repository.dart';
 import 'screens/growth_screen.dart';
 
 void main() {
@@ -183,6 +184,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         builder: (_) => ExerciseScreen(
           recorder: widget.recorder!,
           records: widget.repository,
+          onDiscover: (session) async {
+            final cells = await ExplorationRepository(
+              widget.recorder!.repository,
+            ).discover(session);
+            await widget.growth?.refresh(DateTime.now());
+            return cells;
+          },
         ),
       ),
     );

@@ -9,20 +9,48 @@ import 'package:diligent_life/screens/report_screen.dart';
 import 'package:diligent_life/services/exercise_recorder.dart';
 import 'package:diligent_life/services/reminder_service.dart';
 import 'package:diligent_life/theme/app_theme.dart';
+import 'package:diligent_life/data/exercise_repository.dart';
+import 'package:diligent_life/data/record_repository.dart';
+import 'package:diligent_life/models/exercise_session.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'widget_test.dart' show MemoryRecords;
 import 'exercise_widget_test.dart' show MemoryExerciseRepository;
 import 'exercise_test.dart' show FakeLocation;
 import 'report_widget_test.dart' show Reports;
-import 'portfolio_test.dart' show PortfolioExercises;
 
 import 'package:diligent_life/screens/all_time_map_screen.dart';
+
+class RetryMapExercises extends ExerciseRepository {
+  RetryMapExercises(super.database);
+  bool fail = true;
+  @override
+  Future<List<ExerciseSession>> finishedBetween({
+    DateTime? from,
+    required DateTime before,
+  }) async {
+    if (fail) throw StateError('offline');
+    return super.finishedBetween(from: from, before: before);
+  }
+}
 
 void main() {
   testWidgets(
     'All-time Map failure offers retry without an empty-state claim',
     (tester) async {
-      final repo = PortfolioExercises()..fail = true;
+      sqfliteFfiInit();
+      final db = await tester.runAsync(
+        () => databaseFactoryFfi.openDatabase(
+          inMemoryDatabasePath,
+          options: OpenDatabaseOptions(
+            version: 4,
+            singleInstance: false,
+            onCreate: RecordRepository.createSchema,
+          ),
+        ),
+      );
+      addTearDown(() => db!.close());
+      final repo = RetryMapExercises(db!);
       await tester.pumpWidget(
         DiligentLifeApp(home: AllTimeMapScreen(repository: repo)),
       );
@@ -30,9 +58,16 @@ void main() {
       expect(find.text('운동을 기록하면 지나온 길이 여기에 모여요.'), findsNothing);
       repo.fail = false;
       await tester.tap(find.text('지도를 불러오지 못했어요. 다시 시도'));
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
       expect(find.text('운동을 기록하면 지나온 길이 여기에 모여요.'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
     },
   );
   for (final brightness in Brightness.values) {

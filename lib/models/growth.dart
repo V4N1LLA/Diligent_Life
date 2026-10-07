@@ -45,7 +45,36 @@ const titles = <String, String>{
   'title.hundred_km.v1': '길을 만드는 나',
   'title.steps_100k.v1': '일상의 탐험가',
   'title.workouts_30.v1': '꾸준함의 힘',
+  'title.exploration_first.v1': '새로운 길의 시작',
+  'title.exploration_10.v1': '동네 탐험가',
+  'title.exploration_50.v1': '넓어지는 세상',
+  'title.exploration_100.v1': '길 위의 개척자',
 };
+
+GoalProgress explorationQuest(int count) => GoalProgress(
+  'quest.daily.exploration_3.v1',
+  '오늘 새 지역 3곳',
+  count.toDouble(),
+  3,
+  30,
+);
+
+List<GoalProgress> explorationAchievements(int count) => [
+  for (final (target, reward, title) in [
+    (1, 30, 'first'),
+    (10, 80, '10'),
+    (50, 150, '50'),
+    (100, 250, '100'),
+  ])
+    GoalProgress(
+      'achievement.exploration_$target.v1',
+      target == 1 ? '첫 지역 발견' : '$target개 지역 탐험',
+      count.toDouble(),
+      target.toDouble(),
+      reward,
+      titleId: 'title.exploration_$title.v1',
+    ),
+];
 
 List<GoalProgress> dailyQuests(ActivityDay day) => [
   GoalProgress(

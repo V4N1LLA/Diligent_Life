@@ -12,6 +12,8 @@ import 'package:flutter_map/flutter_map.dart';
 import '../models/exercise_session.dart';
 import '../utils/gps.dart';
 import 'route_polyline_cache.dart';
+import '../models/exploration.dart';
+import 'exploration_overlay.dart';
 
 export 'route_polyline_cache.dart' show speedColor, routeLocation;
 
@@ -30,7 +32,11 @@ class ExerciseRoute extends StatefulWidget {
     this.private = false,
     this.height = 320,
     this.tileProvider,
+    this.exploredCells = const [],
+    this.newCellIds = const {},
   });
+  final List<ExplorationCell> exploredCells;
+  final Set<String> newCellIds;
   final List<RoutePoint> points;
   final RoutePoint? currentPosition;
   final RoutePoint? selectedPoint;
@@ -187,7 +193,7 @@ class ExerciseRouteState extends State<ExerciseRoute> {
     _tiles.removeWhere((tile) => tile.cancelLoading.isCompleted);
     final points = widget.points;
     final position = widget.currentPosition;
-    if (points.isEmpty && position == null) {
+    if (points.isEmpty && position == null && widget.exploredCells.isEmpty) {
       return SizedBox(
         height: widget.height,
         child: Center(
@@ -253,7 +259,9 @@ class ExerciseRouteState extends State<ExerciseRoute> {
                 child: FlutterMap(
                   mapController: _controller,
                   options: MapOptions(
-                    initialCenter: routeLocation(position ?? points.first),
+                    initialCenter: position != null || points.isNotEmpty
+                        ? routeLocation(position ?? points.first)
+                        : widget.exploredCells.first.corner(0, 0),
                     initialZoom: 16,
                     initialCameraFit: !widget.live && points.length > 1
                         ? CameraFit.bounds(
@@ -296,6 +304,11 @@ class ExerciseRouteState extends State<ExerciseRoute> {
                         }
                       },
                     ),
+                    if (widget.exploredCells.isNotEmpty)
+                      ExplorationOverlay(
+                        cells: widget.exploredCells,
+                        newIds: widget.newCellIds,
+                      ),
                     PolylineLayer(polylines: lines),
                     MarkerLayer(
                       markers: [
