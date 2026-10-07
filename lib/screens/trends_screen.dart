@@ -2,6 +2,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/activity_style.dart';
+import '../data/growth_repository.dart';
 
 import '../data/record_repository.dart';
 import '../data/exercise_repository.dart';
@@ -23,9 +25,11 @@ class TrendsScreen extends StatefulWidget {
     required this.repository,
     required this.revision,
     this.exercises,
+    this.growth,
   });
   final RecordRepository repository;
   final ExerciseRepository? exercises;
+  final GrowthRepository? growth;
   final int revision;
   @override
   State<TrendsScreen> createState() => _TrendsScreenState();
@@ -36,6 +40,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   DateTime _anchor = DateTime.now();
   late PortfolioRepository _repository;
   late Future<PortfolioData> _data;
+  Future<List<Map<String, Object?>>>? _steps;
   @override
   void initState() {
     super.initState();
@@ -47,7 +52,8 @@ class _TrendsScreenState extends State<TrendsScreen> {
   void didUpdateWidget(TrendsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.repository != widget.repository ||
-        oldWidget.exercises != widget.exercises) {
+        oldWidget.exercises != widget.exercises ||
+        oldWidget.growth != widget.growth) {
       _repository = PortfolioRepository(widget.repository, widget.exercises);
       _reload();
     } else if (oldWidget.revision != widget.revision) {
@@ -60,6 +66,24 @@ class _TrendsScreenState extends State<TrendsScreen> {
     // A synchronous storage failure may arrive before the next frame attaches
     // FutureBuilder. Handle it now; FutureBuilder still displays its error.
     _data.ignore();
+    final growth = widget.growth;
+    _steps = growth == null
+        ? null
+        : _data.then(
+            (data) => growth.database.query(
+              'daily_steps',
+              columns: ['date', 'steps'],
+              where: data.periodStart == null
+                  ? 'date <= ?'
+                  : 'date >= ? AND date <= ?',
+              whereArgs: [
+                if (data.periodStart != null) dateKey(data.periodStart!),
+                dateKey(data.periodEnd!),
+              ],
+              orderBy: 'date',
+            ),
+          );
+    _steps?.ignore();
   }
 
   Future<void> _open(ExerciseSession session) async {
@@ -171,43 +195,61 @@ class _TrendsScreenState extends State<TrendsScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                '함께 쌓인 기록 거리',
-                style: Theme.of(context).textTheme.titleMedium,
+              ActivitySurface(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '함께 쌓인 기록 거리',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${(summary.meters / 1000).toStringAsFixed(2)} km',
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.small),
+                    Text(
+                      '${_period.label} · ${(summary.meters / 1000).toStringAsFixed(1)}km 움직였어요.',
+                    ),
+                    const SizedBox(height: AppSpace.large),
+                    Wrap(
+                      spacing: 24,
+                      runSpacing: 20,
+                      children: [
+                        _Metric('운동 횟수', '${summary.count}회'),
+                        _Metric('총 기록 시간', elapsedLabel(summary.seconds)),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                '${(summary.meters / 1000).toStringAsFixed(2)} km',
-                style: Theme.of(context).textTheme.displaySmall
-                    ?.copyWith(color: Theme.of(context).colorScheme.primary),
-              ),
-              const SizedBox(height: 24),
-              Wrap(
-                spacing: 24,
-                runSpacing: 20,
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('집계 안내'),
                 children: [
-                  _Metric('운동 횟수', '${summary.count}회'),
-                  _Metric('총 기록 시간', elapsedLabel(summary.seconds)),
                   _Metric(
                     '예상 칼로리 · 총 시간 기준',
                     summary.calories == null
                         ? '— kcal'
                         : '약 ${summary.calories!.round()} kcal',
                   ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '완료한 GPS 운동 기준 · 수동 입력 운동은 합산하지 않아요.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  if (summary.calorieCount < summary.count)
+                    Text(
+                      summary.calorieCount == 0
+                          ? '몸무게가 저장된 운동부터 예상 kcal를 계산해요.'
+                          : '예상 kcal는 몸무게가 있는 ${summary.calorieCount}개 운동의 합계예요.',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                 ],
               ),
-              const SizedBox(height: 16),
-              const Text(
-                '완료한 GPS 운동 기준 · 수동 입력 운동은 합산하지 않아요.',
-                style: TextStyle(fontSize: 12),
-              ),
-              if (summary.calorieCount < summary.count)
-                Text(
-                  summary.calorieCount == 0
-                      ? '몸무게가 저장된 운동부터 예상 kcal를 계산해요.'
-                      : '예상 kcal는 몸무게가 있는 ${summary.calorieCount}개 운동의 합계예요.',
-                  style: const TextStyle(fontSize: 12),
-                ),
               if (summary.count == 0)
                 const Padding(
                   padding: EdgeInsets.only(top: 20),
@@ -218,14 +260,53 @@ class _TrendsScreenState extends State<TrendsScreen> {
                   padding: EdgeInsets.only(top: 12),
                   child: Text('아직 이 기간의 기록이 없어요.'),
                 ),
-              const _Section('월별 움직임'),
+              const ActivitySection('월별 움직임'),
               const Text(
                 '선택한 기간에 포함된 운동만 합산해요.',
                 style: TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 16),
               _MonthlySummary(key: ValueKey(_period), months: data.months),
-              const _Section('몸무게의 변화'),
+              if (_steps != null) ...[
+                const ActivitySection('일상의 걸음'),
+                FutureBuilder<List<Map<String, Object?>>>(
+                  future: _steps,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return TextButton(
+                        onPressed: () => setState(_reload),
+                        child: const Text('걸음 통계 다시 불러오기'),
+                      );
+                    }
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const LinearProgressIndicator();
+                    }
+                    final rows = snapshot.data!;
+                    final total = rows.fold<int>(
+                      0,
+                      (sum, r) => sum + (r['steps'] as int),
+                    );
+                    return ActivitySurface(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '${stepLabel(total)}걸음',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: AppSpace.small),
+                          Text(
+                            '${_period.label}에 기록한 일상 걸음이에요. 운동 거리와 따로 집계해요.',
+                          ),
+                          if (rows.isEmpty)
+                            const Text('걸음 기록을 시작하면 일상의 변화도 여기에 남아요.'),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+              const ActivitySection('몸무게의 변화'),
               if (change != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -243,7 +324,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 '실제 측정한 값만 표시해요. 측정하지 않은 날은 선을 잇지 않아요.',
                 style: TextStyle(fontSize: 12),
               ),
-              const _Section('지나온 모든 길'),
+              const ActivitySection('지나온 모든 길'),
               if (widget.exercises != null)
                 TextButton.icon(
                   onPressed: () => Navigator.of(context).push(
@@ -273,7 +354,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 ),
               ] else
                 const Text('지도에 표시할 이동 경로가 아직 없어요.'),
-              const _Section('나를 보여주는 기록'),
+              const ActivitySection('나를 보여주는 기록'),
               if (data.longest case final session?)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -325,7 +406,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 '최고속도는 센서와 좌표가 일치하는 구간만 비교해요. 기록 시간에는 정지가 포함돼요.',
                 style: TextStyle(fontSize: 12),
               ),
-              const _Section('최근 운동'),
+              const ActivitySection('최근 운동'),
               if (data.recent.isEmpty) const Text('이 기간에 완료한 운동이 아직 없어요.'),
               for (final session in data.recent)
                 ListTile(
@@ -340,7 +421,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                   onTap: () => _open(session),
                 ),
               const SizedBox(height: 12),
-              const _Section('기간 리포트'),
+              const ActivitySection('기간 리포트'),
               if (widget.exercises != null)
                 TextButton.icon(
                   onPressed: () async {
@@ -404,22 +485,6 @@ class _Metric extends StatelessWidget {
       const SizedBox(height: 6),
       Text(value, style: Theme.of(context).textTheme.headlineSmall),
     ],
-  );
-}
-
-class _Section extends StatelessWidget {
-  const _Section(this.title);
-  final String title;
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 28, bottom: 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: AppSpace.small),
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
-      ],
-    ),
   );
 }
 

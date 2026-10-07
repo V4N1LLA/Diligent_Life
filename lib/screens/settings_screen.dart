@@ -3,46 +3,43 @@ import 'package:flutter/material.dart';
 import '../services/reminder_service.dart';
 import '../app_info.dart';
 import '../services/theme_controller.dart';
+import '../theme/app_theme.dart';
+import '../widgets/activity_style.dart';
+import '../widgets/theme_selector.dart';
+import '../services/step_service.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.reminders, this.onBackup});
+  const SettingsScreen({
+    super.key,
+    required this.reminders,
+    this.onBackup,
+    this.onTracking,
+    this.visible = true,
+  });
   final ReminderService reminders;
-  final VoidCallback? onBackup;
+  final VoidCallback? onBackup, onTracking;
+  final bool visible;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: reminders,
     builder: (context, _) => ListView(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.page,
+        AppSpace.medium,
+        AppSpace.page,
+        AppSpace.section,
+      ),
       children: [
         Text('설정', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 24),
+        const ActivitySection('화면', subtitle: '나에게 편안한 모습으로'),
         ValueListenableBuilder<ThemeMode>(
           valueListenable: themeController,
-          builder: (context, mode, _) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('테마'),
-              DropdownButtonFormField<ThemeMode>(
-                initialValue: mode,
-                key: ValueKey(mode),
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: '앱 테마'),
-                items: const [
-                  DropdownMenuItem(
-                    value: ThemeMode.system,
-                    child: Text('시스템 설정 따르기'),
-                  ),
-                  DropdownMenuItem(value: ThemeMode.light, child: Text('라이트')),
-                  DropdownMenuItem(value: ThemeMode.dark, child: Text('다크')),
-                ],
-                onChanged: (value) {
-                  if (value != null) themeController.select(value);
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
+          builder: (context, mode, _) =>
+              ThemeSelector(value: mode, onChanged: themeController.select),
         ),
+        const ActivitySection('활동 기록'),
+        if (onTracking != null)
+          _TrackingEntry(onTap: onTracking!, visible: visible),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('매일 기록 알림'),
@@ -80,18 +77,17 @@ class SettingsScreen extends StatelessWidget {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
-        const SizedBox(height: 32),
-        const Divider(),
-        const SizedBox(height: 24),
+        const ActivitySection('데이터', subtitle: '소중한 기록을 안전하게'),
         if (onBackup != null)
           ListTile(
             contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.cloud_download_outlined),
             title: const Text('기록 백업과 복원'),
             subtitle: const Text('전체 원본을 로컬 파일로 보관하기'),
             trailing: const Icon(Icons.chevron_right),
             onTap: onBackup,
           ),
-        const SizedBox(height: 16),
+        const ActivitySection('앱 정보'),
         Text('Diligent Life', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
         const Text('버전 $appVersionLabel'),
@@ -113,6 +109,47 @@ class SettingsScreen extends StatelessWidget {
           child: const Text('오픈소스 라이선스'),
         ),
       ],
+    ),
+  );
+}
+
+class _TrackingEntry extends StatefulWidget {
+  const _TrackingEntry({required this.onTap, required this.visible});
+  final VoidCallback onTap;
+  final bool visible;
+  @override
+  State<_TrackingEntry> createState() => _TrackingEntryState();
+}
+
+class _TrackingEntryState extends State<_TrackingEntry> {
+  Future<StepStatus>? _status;
+  void _load() {
+    _status = StepService().status();
+    _status!.ignore();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.visible) _load();
+  }
+
+  @override
+  void didUpdateWidget(_TrackingEntry oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.visible && widget.visible) _load();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<StepStatus>(
+    future: _status,
+    builder: (context, snapshot) => ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.directions_walk),
+      title: const Text('걸음 측정과 목표'),
+      subtitle: Text(snapshot.data?.message ?? '측정 상태 · 권한 · 하루 목표 확인'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: widget.onTap,
     ),
   );
 }

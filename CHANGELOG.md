@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0+14 UI polish
+
+- Theme 제목과 선택 control 분리. 넓은 화면은 full-width segmented control, 좁은 화면·큰 글꼴은 세로 선택. 선택 상태·최소 터치 영역·로컬 저장 유지.
+- 공통 spacing/radius/typography/surface/progress token, sage 활동 강조와 purple 성장 강조. Today는 레벨 → 오늘 걸음 → 운동 시작 → 일일 퀘스트 2개 → 주간 요약 순서.
+- 성장 화면의 일일/주간 퀘스트·잠금 업적·장착 타이틀 구분, 다음 레벨까지 XP 표시. Portfolio는 핵심 거리/시간·활동 trend·선택 기간의 일상 걸음·체중·경로·기록·리포트 순서. 집계 설명은 접어서 표시.
+- 운동 상세는 지도 → 핵심 통계 → 위치/시간/페이스 scrubber → 선택 구간 → 속도 흐름 → 상세 분석. 공유 preview와 Settings section 정리.
+- GPS/만보기/XP 규칙·schema 4·backup format 2·native service·배터리 최적화 변경 없음. 검증 범위·실기기 제한은 [UI polish 기록](docs/ui-polish-v1.1.md) 참고.
+
+
 ## 1.1.0+14
 
 - GPS와 분리된 Android step counter 만보기, 오늘 목표·최근 7일·주/월 걸음 통계, health foreground service 및 재시작/재부팅/reset/중복 처리. 자정 수신 공백은 구분해 표시.

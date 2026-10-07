@@ -489,9 +489,11 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 24),
-                    RouteScrubber(points: points),
-                    const SizedBox(height: 24),
-                    SessionStats(session: widget.session),
+                    RouteScrubber(
+                      points: points,
+                      summary: SessionStats(session: widget.session),
+                    ),
+                    const SizedBox(height: AppSpace.section),
                     if (widget.analysis != null)
                       ExpansionTile(
                         title: const Text('상세 분석'),
