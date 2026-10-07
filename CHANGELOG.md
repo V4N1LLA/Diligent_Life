@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0+14 main baseline
+
+- v1.1 기능과 UI polish를 main baseline으로 통합. 데이터·서비스·보상·프라이버시 리뷰와 검증 범위는 [baseline 기록](docs/baseline-v1.1.md) 참고.
+- 백업 내보내기 전에 native 센서 대기 걸음을 flush해 최근 걸음 누락 방지. flush 실패 시 내보내기 중단, 회귀 테스트 2개 추가. GPS·XP 규칙·schema·백업 형식은 유지.
+- 실제 걸음 정확도, 자정/화면 OFF 센서, 장시간 health FGS, 배터리, 야외 GPS, TalkBack 음성 탐색은 S26 최종 검증 항목으로 유지.
+
 ## 1.1.0+14 UI polish
 
 - Theme 제목과 선택 control 분리. 넓은 화면은 full-width segmented control, 좁은 화면·큰 글꼴은 세로 선택. 선택 상태·최소 터치 영역·로컬 저장 유지.

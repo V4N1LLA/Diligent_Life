@@ -33,6 +33,9 @@ class _BackupScreenState extends State<BackupScreen> {
     });
     File? file;
     try {
+      // Include the native sensor batch before taking the database snapshot.
+      // A failed flush must not be presented as a complete backup.
+      await StepService().flush();
       file = await widget.repository.export();
       final saved = await _files.save(file);
       if (mounted) {

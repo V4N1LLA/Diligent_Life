@@ -1,10 +1,14 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:diligent_life/data/backup_repository.dart';
+import 'package:diligent_life/data/record_repository.dart';
 import 'package:diligent_life/screens/backup_screen.dart';
 import 'package:diligent_life/services/backup_files.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class PreviewBackup implements PreparedBackup {
   @override
@@ -46,7 +50,96 @@ class PreviewFiles extends BackupFiles {
   }
 }
 
+class ExportFiles extends BackupFiles {
+  List<String>? saved;
+  @override
+  Future<bool> save(File file) async {
+    saved = await file.readAsLines();
+    return true;
+  }
+}
+
 void main() {
+  for (final failFlush in [false, true]) {
+    testWidgets(
+      'export includes pending sensor steps or aborts on flush failure ($failFlush)',
+      (tester) async {
+        sqfliteFfiInit();
+        final db = await tester.runAsync(
+          () => databaseFactoryFfi.openDatabase(
+            inMemoryDatabasePath,
+            options: OpenDatabaseOptions(
+              version: 4,
+              singleInstance: false,
+              onCreate: RecordRepository.createSchema,
+            ),
+          ),
+        );
+        addTearDown(db!.close);
+        const channel = MethodChannel('diligent_life/steps');
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          (call) async {
+            if (call.method != 'flush') {
+              throw StateError('Unexpected sensor operation');
+            }
+            if (failFlush) throw PlatformException(code: 'storage');
+            // Model a sensor batch that has not reached the 30-second DB checkpoint.
+            await db.insert('daily_steps', {
+              'date': '2026-10-07',
+              'steps': 59,
+              'coverage': 'observed',
+              'updatedAt': '2026-10-07T00:00:00Z',
+            });
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            channel,
+            null,
+          ),
+        );
+        final files = ExportFiles();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: BackupScreen(
+              repository: BackupRepository(db),
+              files: files,
+              canImport: () => true,
+              onImported: () async {},
+            ),
+          ),
+        );
+        await tester.runAsync(() async {
+          await tester.tap(find.text('전체 기록 내보내기'));
+        });
+        for (var i = 0; i < 100; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)),
+          );
+          await tester.pump();
+          if (find.byType(LinearProgressIndicator).evaluate().isEmpty) break;
+        }
+        if (failFlush) {
+          expect(files.saved, isNull);
+          expect(find.textContaining('저장하지 못했어요.'), findsOneWidget);
+        } else {
+          final rows = files.saved!.map(
+            (line) => jsonDecode(line) as Map<String, dynamic>,
+          );
+          expect(
+            rows
+                .where((r) => r['table'] == 'daily_steps')
+                .single['row']['steps'],
+            59,
+          );
+          expect(find.text('백업 파일을 저장했어요.'), findsOneWidget);
+        }
+      },
+    );
+  }
+
   testWidgets(
     'import previews counts, cancel preserves data, explicit confirmation replaces once',
     (tester) async {
