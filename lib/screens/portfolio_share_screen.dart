@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../data/portfolio_repository.dart';
 import '../services/portfolio_share.dart';
+import '../theme/app_theme.dart';
 
 class PortfolioShareScreen extends StatefulWidget {
   const PortfolioShareScreen({
@@ -110,7 +111,7 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
     appBar: AppBar(
       title: Text(
         widget.notice != null
-            ? '운동 공유 미리보기'
+            ? '공유 카드'
             : widget.image == null
             ? '포트폴리오 공유'
             : '리포트 공유',
@@ -132,15 +133,18 @@ class _PortfolioShareScreenState extends State<PortfolioShareScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           return ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpace.page),
             children: [
               Text(
                 widget.notice ?? '선택한 기간의 움직임과 몸무게 변화가 포함돼요. 경로 위치는 포함하지 않아요.',
               ),
               const SizedBox(height: 16),
-              Image.memory(
-                snapshot.data!,
-                semanticLabel: '${widget.title} 이미지 카드',
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppStyle.radius),
+                child: Image.memory(
+                  snapshot.data!,
+                  semanticLabel: '${widget.title} 이미지 카드',
+                ),
               ),
               const SizedBox(height: 16),
               if (_error != null) Text(_error!),

@@ -8,6 +8,8 @@ import '../models/growth.dart';
 import '../services/step_service.dart';
 import '../services/achievement_share.dart';
 import '../utils/dates.dart';
+import '../theme/app_theme.dart';
+import '../widgets/activity_style.dart';
 import 'portfolio_share_screen.dart';
 
 class MovementHomeSummary extends StatefulWidget {
@@ -16,7 +18,9 @@ class MovementHomeSummary extends StatefulWidget {
     required this.repository,
     required this.visible,
     required this.revision,
+    this.workout,
   });
+  final Widget? workout;
   final GrowthRepository repository;
   final bool visible;
   final int revision;
@@ -94,7 +98,19 @@ class _MovementHomeSummaryState extends State<MovementHomeSummary>
   Widget build(BuildContext context) => FutureBuilder<GrowthSnapshot>(
     future: _data,
     builder: (context, snapshot) {
-      if (!snapshot.hasData) return const SizedBox.shrink();
+      if (!snapshot.hasData) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (snapshot.hasError)
+              TextButton(
+                onPressed: () => setState(_load),
+                child: const Text('걸음과 성장 다시 불러오기'),
+              ),
+            if (widget.workout != null) widget.workout!,
+          ],
+        );
+      }
       final data = snapshot.data!;
       final today = data.days
           .where((d) => d.date == dateKey(DateTime.now()))
@@ -106,26 +122,68 @@ class _MovementHomeSummaryState extends State<MovementHomeSummary>
       final week = data.days
           .where((d) => d.date.compareTo(monday) >= 0)
           .fold<double>(0, (sum, d) => sum + d.meters);
+      final daily = data.quests.where((q) => q.id.contains('.daily.'));
+      final preview = [
+        ...daily.where((q) => !q.complete),
+        ...daily.where((q) => q.complete),
+      ].take(2);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.directions_walk),
-            title: Text('오늘 ${today?.steps ?? 0}걸음'),
-            subtitle: Text(
-              '목표 $_goal걸음 · 이번 주 운동 ${(week / 1000).toStringAsFixed(1)}km',
+          LevelProgress(data: data, onTap: () => _open(context)),
+          const SizedBox(height: AppSpace.section),
+          Semantics(
+            button: true,
+            label: '오늘 ${today?.steps ?? 0}걸음, 목표 $_goal걸음. 걸음과 나의 성장 열기',
+            onTap: () => _open(context),
+            excludeSemantics: true,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppStyle.radius),
+              onTap: () => _open(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpace.medium),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      stepLabel(today?.steps ?? 0),
+                      style: Theme.of(context).textTheme.displaySmall,
+                    ),
+                    const SizedBox(height: AppSpace.small),
+                    Text(
+                      '오늘 걸음',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: AppSpace.large),
+                    LinearProgressIndicator(
+                      value: ((today?.steps ?? 0) / _goal).clamp(0, 1),
+                    ),
+                    const SizedBox(height: AppSpace.small),
+                    Text(
+                      '${stepLabel(today?.steps ?? 0)} / ${stepLabel(_goal)}걸음',
+                    ),
+                  ],
+                ),
+              ),
             ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _open(context),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.person_outline),
-            title: Text('Lv ${data.level} · ${data.title}'),
-            subtitle: Text('${data.levelXp} / ${data.nextLevelXp} XP · 나의 성장'),
-            onTap: () => _open(context),
+          if (widget.workout != null) ...[
+            const SizedBox(height: AppSpace.large),
+            widget.workout!,
+          ],
+          const ActivitySection('오늘의 작은 도전', subtitle: '조금씩, 나의 속도로'),
+          for (final quest in preview) GoalProgressView(goal: quest),
+          TextButton(
+            onPressed: () => _open(context),
+            child: const Text('퀘스트와 나의 성장 모두 보기'),
           ),
+          const ActivitySection('이번 주 움직임'),
+          Text(
+            '${(week / 1000).toStringAsFixed(1)} km',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: AppSpace.small),
+          const Text('완료한 운동이 차곡차곡 쌓이고 있어요.'),
         ],
       );
     },
@@ -244,7 +302,7 @@ class _GrowthScreenState extends State<GrowthScreen>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('걸음과 나의 성장'),
+      title: const Text('나의 성장'),
       actions: [
         IconButton(
           tooltip: '새로고침',
@@ -288,13 +346,13 @@ class _GrowthScreenState extends State<GrowthScreen>
                   .where((r) => r['date'] == today)
                   .firstOrNull?['coverage'];
               return ListView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(AppSpace.page),
                 children: [
                   Text(
                     '오늘 ${day.steps}걸음',
-                    style: Theme.of(context).textTheme.headlineMedium,
+                    style: Theme.of(context).textTheme.displaySmall,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.large),
                   LinearProgressIndicator(
                     value: (day.steps / _goal).clamp(0, 1),
                     semanticsLabel: '오늘 걸음 목표 ${day.steps} / $_goal걸음',
@@ -378,18 +436,7 @@ class _GrowthScreenState extends State<GrowthScreen>
                     ),
                   Text('이번 주 ${sum(monday)}걸음 · 이번 달 ${sum(month)}걸음'),
                   const SizedBox(height: 32),
-                  Text(
-                    '앱 안의 나 · Lv ${data.level}',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  Text(
-                    '${data.title} · ${data.levelXp} / ${data.nextLevelXp} XP',
-                  ),
-                  const SizedBox(height: 12),
-                  LinearProgressIndicator(
-                    value: data.levelXp / data.nextLevelXp,
-                    semanticsLabel: '다음 레벨까지 경험치',
-                  ),
+                  LevelProgress(data: data),
                   TextButton.icon(
                     onPressed: () => _share(
                       'Lv ${data.level}',
@@ -402,30 +449,45 @@ class _GrowthScreenState extends State<GrowthScreen>
                     '걸음·GPS 운동 거리·시간에 하루 상한이 있어요. 체중·칼로리·직접 입력에는 XP를 주지 않아요. 완료 보상은 한 번만 받아요.',
                   ),
                   const SizedBox(height: 24),
-                  Text('가볍게 도전', style: Theme.of(context).textTheme.titleLarge),
-                  const Text('모두 채우지 않아도 괜찮아요. 완료하면 보상은 자동으로 쌓여요.'),
-                  for (final q in data.quests) _goalTile(q),
+                  const ActivitySection(
+                    '가볍게 도전',
+                    subtitle: '완료한 보상은 자동으로 쌓여요.',
+                  ),
+                  const Text('오늘의 퀘스트'),
+                  for (final q in data.quests.where(
+                    (q) => q.id.contains('.daily.'),
+                  ))
+                    _goalTile(q),
+                  const SizedBox(height: AppSpace.large),
+                  const Text('이번 주 퀘스트'),
+                  for (final q in data.quests.where(
+                    (q) => q.id.contains('.weekly.'),
+                  ))
+                    _goalTile(q),
                   const SizedBox(height: 24),
                   Text(
                     '나의 업적과 타이틀',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  for (final a in data.achievements) _goalTile(a),
+                  for (final a in data.achievements)
+                    _goalTile(a, achievement: true),
+                  const ActivitySection('나의 타이틀', subtitle: '지금의 나를 나타내는 한마디'),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('타이틀 없이 지내기'),
-                    trailing: data.titleId == null
-                        ? const Icon(Icons.check)
-                        : null,
+                    subtitle: data.titleId == null ? const Text('장착 중') : null,
                     onTap: () => _equip(null, data),
                   ),
                   for (final id in data.unlockedTitles)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(titles[id]!),
-                      trailing: data.titleId == id
-                          ? const Icon(Icons.check)
-                          : const Icon(Icons.person_outline),
+                      subtitle: data.titleId == id ? const Text('장착 중') : null,
+                      trailing: Icon(
+                        data.titleId == id
+                            ? Icons.check_circle
+                            : Icons.person_outline,
+                      ),
                       onTap: () => _equip(id, data),
                     ),
                 ],
@@ -434,22 +496,12 @@ class _GrowthScreenState extends State<GrowthScreen>
           ),
     ),
   );
-  Widget _goalTile(GoalProgress goal) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    title: Text(goal.label),
-    subtitle: Text(
-      goal.complete
-          ? '완료 · +${goal.reward} XP'
-          : '${(goal.fraction * 100).floor()}% · +${goal.reward} XP',
-    ),
-    trailing: goal.complete
-        ? IconButton(
-            tooltip: '${goal.label} 성취 카드',
-            icon: const Icon(Icons.ios_share),
-            onPressed: () => _share(goal.label, '완료 · ${goal.reward} XP'),
-          )
-        : null,
-  );
+  Widget _goalTile(GoalProgress goal, {bool achievement = false}) =>
+      GoalProgressView(
+        goal: goal,
+        achievement: achievement,
+        onShare: () => _share(goal.label, '완료 · ${goal.reward} XP'),
+      );
   Future<void> _equip(String? id, GrowthSnapshot data) async {
     await widget.repository.equip(id, data);
     if (mounted) setState(_load);

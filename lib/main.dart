@@ -257,15 +257,36 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                           repository: widget.growth!,
                           visible: _index == 0,
                           revision: _revision,
+                          workout: widget.recorder == null
+                              ? null
+                              : WorkoutEntry(
+                                  recorder: widget.recorder!,
+                                  onOpen: _openExercise,
+                                ),
                         ),
                 ),
                 TrendsScreen(
                   repository: widget.repository,
                   revision: _revision,
                   exercises: widget.recorder?.repository,
+                  growth: widget.growth,
                 ),
                 SettingsScreen(
                   reminders: widget.reminders,
+                  visible: _index == 2,
+                  revision: _revision,
+                  onTracking: widget.growth == null
+                      ? null
+                      : () => Navigator.of(context)
+                            .push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    GrowthScreen(repository: widget.growth!),
+                              ),
+                            )
+                            .then((_) {
+                              if (mounted) setState(() => _revision++);
+                            }),
                   onBackup: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => BackupScreen(

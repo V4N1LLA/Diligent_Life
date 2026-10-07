@@ -119,40 +119,12 @@ class _TodayHomeState extends State<TodayHome> {
         style: Theme.of(context).textTheme.bodyMedium,
       ),
       const SizedBox(height: AppSpace.section),
-      if (widget.recorder case final recorder?)
-        ListenableBuilder(
-          listenable: recorder,
-          builder: (context, _) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (recorder.active) ...[
-                Text(
-                  '${recorder.live!.type.label} · ${recorder.recording ? '기록 중' : '일시정지'}',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Text(
-                  '${elapsedLabel(recorder.elapsedSeconds)} · ${(recorder.live!.distanceMeters / 1000).toStringAsFixed(2)} km',
-                ),
-                if (recorder.issue != null) Text(recorder.issue!.message),
-                const SizedBox(height: AppSpace.medium),
-              ],
-              FilledButton.icon(
-                onPressed: widget.openExercise,
-                icon: Icon(
-                  recorder.active ? Icons.near_me_outlined : Icons.play_arrow,
-                ),
-                label: Text(recorder.active ? '운동으로 돌아가기' : '운동 시작'),
-              ),
-              const SizedBox(height: AppSpace.small),
-              Text(
-                recorder.active
-                    ? '다른 화면을 보거나 앱을 나가도 기록은 유지돼요.'
-                    : '익숙한 운동으로, 가볍게 시작하세요.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ),
+      if (widget.growth != null)
+        widget.growth!
+      else ...[
+        if (widget.recorder case final recorder?)
+          WorkoutEntry(recorder: recorder, onOpen: widget.openExercise),
+      ],
       const SizedBox(height: AppSpace.section),
       FutureBuilder<(double?, List<ExerciseSession>, DailyRecord?)>(
         future: _data,
@@ -177,8 +149,10 @@ class _TodayHomeState extends State<TodayHome> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (widget.growth != null) widget.growth!,
-              if (history.length >= 2)
+              if (history.length >= 2 &&
+                  (history[0].elapsedSeconds - history[1].elapsedSeconds)
+                          .abs() >=
+                      60)
                 Text(
                   '지난 운동보다 ${((history[0].elapsedSeconds - history[1].elapsedSeconds) / 60).abs().round()}분 ${history[0].elapsedSeconds >= history[1].elapsedSeconds ? '더' : '덜'} 움직였어요.',
                 ),
@@ -236,6 +210,44 @@ class _TodayHomeState extends State<TodayHome> {
         label: const Text('지난 기록 · 운동 직접 입력'),
       ),
     ],
+  );
+}
+
+/// Shared entry keeps the active recording state visible in either home layout.
+class WorkoutEntry extends StatelessWidget {
+  const WorkoutEntry({super.key, required this.recorder, required this.onOpen});
+  final ExerciseRecorder recorder;
+  final VoidCallback onOpen;
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: recorder,
+    builder: (context, _) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (recorder.active) ...[
+          Text(
+            '${recorder.live!.type.label} · ${recorder.recording ? '기록 중' : '일시정지'}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          if (recorder.issue != null) Text(recorder.issue!.message),
+          const SizedBox(height: AppSpace.medium),
+        ],
+        FilledButton.icon(
+          onPressed: onOpen,
+          icon: Icon(
+            recorder.active ? Icons.near_me_outlined : Icons.play_arrow_rounded,
+          ),
+          label: Text(recorder.active ? '운동으로 돌아가기' : '운동 시작'),
+        ),
+        const SizedBox(height: AppSpace.small),
+        Text(
+          recorder.active
+              ? '다른 화면을 보거나 앱을 나가도 기록은 유지돼요.'
+              : '익숙한 운동으로, 가볍게 시작하세요.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    ),
   );
 }
 
