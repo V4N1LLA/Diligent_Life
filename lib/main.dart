@@ -1,0 +1,339 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'data/record_repository.dart';
+import 'data/backup_repository.dart';
+import 'screens/backup_screen.dart';
+import 'data/exercise_repository.dart';
+import 'services/exercise_recorder.dart';
+import 'screens/exercise_screen.dart';
+import 'screens/today_home.dart';
+import 'screens/trends_screen.dart';
+import 'screens/settings_screen.dart';
+import 'services/reminder_service.dart';
+import 'theme/app_theme.dart';
+import 'services/theme_controller.dart';
+import 'services/step_service.dart';
+import 'data/growth_repository.dart';
+import 'screens/growth_screen.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  unawaited(themeController.load());
+  runApp(const DiligentLifeApp());
+}
+
+class DiligentLifeApp extends StatelessWidget {
+  const DiligentLifeApp({super.key, this.home});
+  final Widget? home;
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
+    valueListenable: themeController,
+    builder: (context, mode, _) => MaterialApp(
+      title: 'Diligent Life',
+      debugShowCheckedModeBanner: false,
+      theme: appTheme(Brightness.light),
+      darkTheme: appTheme(Brightness.dark),
+      themeMode: mode,
+      locale: const Locale('ko'),
+      supportedLocales: const [Locale('ko'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      home: home ?? const _Bootstrap(),
+    ),
+  );
+}
+
+class _Bootstrap extends StatefulWidget {
+  const _Bootstrap();
+  @override
+  State<_Bootstrap> createState() => _BootstrapState();
+}
+
+class _BootstrapState extends State<_Bootstrap> {
+  RecordRepository? _repository;
+  ReminderService? _reminders;
+  ExerciseRecorder? _recorder;
+  bool _failed = false;
+  @override
+  void initState() {
+    super.initState();
+    _open();
+  }
+
+  Future<void> _open() async {
+    setState(() => _failed = false);
+    RecordRepository? opened;
+    ExerciseRecorder? recovering;
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final repository = await RecordRepository.open();
+      opened = repository;
+      if (!mounted) {
+        await repository.database.close();
+        return;
+      }
+      final reminders = ReminderService(preferences);
+      final recorder = ExerciseRecorder(
+        ExerciseRepository(repository.database),
+      );
+      recovering = recorder;
+      await recorder.restore();
+      await StepService().restore();
+      if (!mounted) {
+        recorder.dispose();
+        await repository.database.close();
+        return;
+      }
+      setState(() {
+        _repository = repository;
+        _reminders = reminders;
+        _recorder = recorder;
+      });
+      unawaited(reminders.restore());
+    } catch (_) {
+      recovering?.dispose();
+      await opened?.database.close();
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_repository != null) {
+      return AppShell(
+        repository: _repository!,
+        reminders: _reminders!,
+        recorder: _recorder,
+        growth: GrowthRepository(_repository!.database),
+      );
+    }
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: _failed
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('기록 저장소를 열지 못했어요.'),
+                    TextButton(onPressed: _open, child: const Text('다시 시도')),
+                  ],
+                )
+              : const CircularProgressIndicator(),
+        ),
+      ),
+    );
+  }
+}
+
+class AppShell extends StatefulWidget {
+  const AppShell({
+    super.key,
+    required this.repository,
+    required this.reminders,
+    this.recorder,
+    this.growth,
+  });
+  final RecordRepository repository;
+  final ReminderService reminders;
+  final ExerciseRecorder? recorder;
+  final GrowthRepository? growth;
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
+  int _index = 0, _revision = 0, _importRevision = 0;
+  bool _leaving = false;
+  bool _exerciseActive = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.recorder?.addListener(_recordingChanged);
+    _exerciseActive = widget.recorder?.active ?? false;
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.recorder?.removeListener(_recordingChanged);
+    super.dispose();
+  }
+
+  void _recordingChanged() {
+    final active = widget.recorder?.active ?? false;
+    if (mounted && _exerciseActive != active) {
+      setState(() {
+        _exerciseActive = active;
+        _revision++;
+      });
+    }
+  }
+
+  Future<void> _openExercise() async {
+    if (widget.recorder == null) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ExerciseScreen(
+          recorder: widget.recorder!,
+          records: widget.repository,
+        ),
+      ),
+    );
+    if (mounted) setState(() => _revision++);
+  }
+
+  Future<void> _leave() async {
+    if (_leaving) return;
+    _leaving = true;
+    try {
+      if (widget.recorder?.active ?? false) {
+        // Keep the Flutter engine and its location subscription alive on Android.
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          await const MethodChannel('diligent_life/lifecycle')
+              .invokeMethod<void>('moveToBackground');
+          return;
+        }
+        return;
+      }
+      await SystemNavigator.pop();
+    } finally {
+      _leaving = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.reminders.restore());
+      setState(() => _revision++);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: !(widget.recorder?.active ?? false),
+    onPopInvokedWithResult: (didPop, result) {
+      if (!didPop) unawaited(_leave());
+    },
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('Diligent Life'),
+        actions: [
+          if (widget.recorder != null && _index != 0)
+            TextButton.icon(
+              onPressed: _openExercise,
+              icon: Icon(
+                widget.recorder!.active ? Icons.location_on : Icons.route,
+              ),
+              label: Text(widget.recorder!.active ? '기록 중' : '운동'),
+            ),
+        ],
+      ),
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: IndexedStack(
+              index: _index,
+              children: [
+                TodayHome(
+                  key: ValueKey(_importRevision),
+                  repository: widget.repository,
+                  recorder: widget.recorder,
+                  revision: _revision,
+                  onSaved: () => setState(() => _revision++),
+                  openExercise: _openExercise,
+                  growth: widget.growth == null
+                      ? null
+                      : MovementHomeSummary(
+                          repository: widget.growth!,
+                          visible: _index == 0,
+                          revision: _revision,
+                          workout: widget.recorder == null
+                              ? null
+                              : WorkoutEntry(
+                                  recorder: widget.recorder!,
+                                  onOpen: _openExercise,
+                                ),
+                        ),
+                ),
+                TrendsScreen(
+                  repository: widget.repository,
+                  revision: _revision,
+                  exercises: widget.recorder?.repository,
+                  growth: widget.growth,
+                ),
+                SettingsScreen(
+                  reminders: widget.reminders,
+                  visible: _index == 2,
+                  revision: _revision,
+                  onTracking: widget.growth == null
+                      ? null
+                      : () => Navigator.of(context)
+                            .push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    GrowthScreen(repository: widget.growth!),
+                              ),
+                            )
+                            .then((_) {
+                              if (mounted) setState(() => _revision++);
+                            }),
+                  onBackup: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => BackupScreen(
+                        repository: BackupRepository(
+                          widget.repository.database,
+                        ),
+                        canImport: () => !(widget.recorder?.active ?? false),
+                        onImported: () async {
+                          await widget.recorder?.restore();
+                          if (mounted) {
+                            setState(() {
+                              _revision++;
+                              _importRevision++;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (index) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          setState(() {
+            _index = index;
+            if (index == 1) _revision++;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.edit_outlined),
+            selectedIcon: Icon(Icons.edit),
+            label: '오늘',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.insights_outlined),
+            label: '포트폴리오',
+          ),
+          NavigationDestination(icon: Icon(Icons.tune), label: '설정'),
+        ],
+      ),
+    ),
+  );
+}
