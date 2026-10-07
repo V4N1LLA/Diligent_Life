@@ -274,6 +274,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 SettingsScreen(
                   reminders: widget.reminders,
                   visible: _index == 2,
+                  revision: _revision,
                   onTracking: widget.growth == null
                       ? null
                       : () => Navigator.of(context)

@@ -15,10 +15,12 @@ class SettingsScreen extends StatelessWidget {
     this.onBackup,
     this.onTracking,
     this.visible = true,
+    this.revision = 0,
   });
   final ReminderService reminders;
   final VoidCallback? onBackup, onTracking;
   final bool visible;
+  final int revision;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: reminders,
@@ -39,7 +41,11 @@ class SettingsScreen extends StatelessWidget {
         ),
         const ActivitySection('활동 기록'),
         if (onTracking != null)
-          _TrackingEntry(onTap: onTracking!, visible: visible),
+          _TrackingEntry(
+            onTap: onTracking!,
+            visible: visible,
+            revision: revision,
+          ),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('매일 기록 알림'),
@@ -114,9 +120,14 @@ class SettingsScreen extends StatelessWidget {
 }
 
 class _TrackingEntry extends StatefulWidget {
-  const _TrackingEntry({required this.onTap, required this.visible});
+  const _TrackingEntry({
+    required this.onTap,
+    required this.visible,
+    required this.revision,
+  });
   final VoidCallback onTap;
   final bool visible;
+  final int revision;
   @override
   State<_TrackingEntry> createState() => _TrackingEntryState();
 }
@@ -137,7 +148,10 @@ class _TrackingEntryState extends State<_TrackingEntry> {
   @override
   void didUpdateWidget(_TrackingEntry oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!oldWidget.visible && widget.visible) _load();
+    if (widget.visible &&
+        (!oldWidget.visible || oldWidget.revision != widget.revision)) {
+      _load();
+    }
   }
 
   @override
@@ -147,7 +161,11 @@ class _TrackingEntryState extends State<_TrackingEntry> {
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.directions_walk),
       title: const Text('걸음 측정과 목표'),
-      subtitle: Text(snapshot.data?.message ?? '측정 상태 · 권한 · 하루 목표 확인'),
+      subtitle: Text(
+        snapshot.data?.error ??
+            snapshot.data?.message ??
+            '측정 상태 · 권한 · 하루 목표 확인',
+      ),
       trailing: const Icon(Icons.chevron_right),
       onTap: widget.onTap,
     ),

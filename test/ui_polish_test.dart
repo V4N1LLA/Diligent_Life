@@ -53,11 +53,12 @@ void main() {
       addTearDown(reminders.dispose);
       const channel = MethodChannel('diligent_life/steps');
       final calls = <String>[];
+      var status = <String, Object>{'supported': false};
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
         call,
       ) async {
         calls.add(call.method);
-        return {'supported': false};
+        return status;
       });
       addTearDown(
         () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -65,13 +66,14 @@ void main() {
           null,
         ),
       );
-      Future<void> render(bool visible) async {
+      Future<void> render(bool visible, {int revision = 0}) async {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
               body: SettingsScreen(
                 reminders: reminders,
                 visible: visible,
+                revision: revision,
                 onTracking: () {},
               ),
             ),
@@ -90,6 +92,17 @@ void main() {
       await render(false);
       await render(true);
       expect(calls, ['status', 'status']);
+      status = {'supported': true, 'permission': false};
+      await render(true, revision: 1);
+      expect(find.text('신체 활동 권한을 허용하면 걸음을 기록해요.'), findsOneWidget);
+      expect(calls, ['status', 'status', 'status']);
+      status = {'supported': true, 'error': 'storage'};
+      await render(true, revision: 2);
+      expect(
+        find.text('걸음 기록에 문제가 있어요. 권한·저장 공간·절전 설정을 확인해 주세요.'),
+        findsOneWidget,
+      );
+      expect(calls, everyElement('status'));
       await tester.pumpWidget(const SizedBox());
     },
   );
