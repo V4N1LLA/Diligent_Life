@@ -79,7 +79,7 @@ class _BackupScreenState extends State<BackupScreen> {
           content: SingleChildScrollView(
             child: Text(
               '백업 생성: ${prepared!.createdAt}\n일상 기록 ${counts['daily_records']}개\n운동 ${counts['exercise_sessions']}개\n경로 ${counts['route_points']}개 · 원본 GPS ${counts['raw_route_points']}개\n\n'
-              '${counts.containsKey('daily_steps') ? '걸음·XP·타이틀도 백업의 기록으로 교체해요.' : '이전 버전 백업이므로 현재 걸음·XP·타이틀은 유지해요.'}\n'
+              '${counts.containsKey('daily_steps') ? '걸음·XP·타이틀·탐험도 백업의 기록으로 교체해요.' : '이전 버전 백업이므로 현재 걸음·XP·타이틀·탐험은 유지해요.'}\n'
               '현재 운동·몸무게·경로를 모두 교체해요. 병합하지 않으며 기존 기록은 남지 않아요. 먼저 현재 데이터를 내보내 주세요.\n알림 설정은 유지해요. 백업의 미완료 운동은 일시정지 상태로 복원돼요.',
             ),
           ),
@@ -131,7 +131,7 @@ class _BackupScreenState extends State<BackupScreen> {
           const Text('내 기록을 오래 간직하기', style: TextStyle(fontSize: 24)),
           const SizedBox(height: 16),
           const Text(
-            '몸무게와 일상 걸음, 운동과 전체 경로, GPS 원본, XP와 타이틀을 하나의 파일에 보관해요. 앱 서버나 계정은 사용하지 않아요.',
+            '몸무게와 일상 걸음, 운동과 전체 경로, GPS 원본, XP와 타이틀, 탐험 영역을 하나의 파일에 보관해요. 앱 서버나 계정은 사용하지 않아요.',
           ),
           const SizedBox(height: 16),
           const Text(

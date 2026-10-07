@@ -268,10 +268,13 @@ class BackupRepository {
         limit: 1,
       );
       if (active.isNotEmpty) throw StateError('진행 중인 운동을 종료한 뒤 가져와 주세요.');
-      final cache = await txn.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='portfolio_analysis'",
-      );
-      if (cache.isNotEmpty) await txn.delete('portfolio_analysis');
+      for (final table in ['portfolio_analysis', 'exploration_scans']) {
+        final cache = await txn.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+          [table],
+        );
+        if (cache.isNotEmpty) await txn.delete(table);
+      }
       for (final table in tables.reversed) {
         await txn.delete(table);
       }

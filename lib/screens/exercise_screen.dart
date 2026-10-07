@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../theme/app_theme.dart';
 import 'portfolio_share_screen.dart';
+import 'all_time_map_screen.dart';
 
 import 'package:geolocator/geolocator.dart';
 
@@ -28,7 +29,9 @@ class ExerciseScreen extends StatefulWidget {
     super.key,
     required this.recorder,
     required this.records,
+    this.onDiscover,
   });
+  final Future<Set<String>> Function(ExerciseSession)? onDiscover;
   final ExerciseRecorder recorder;
   final RecordRepository records;
   @override
@@ -42,6 +45,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
   late final RecordingPresentation _presentation;
   late final Widget _liveMap;
   bool _routeVisible = false;
+  bool _discovering = false;
   AppLifecycleState? _lifecycle;
   @override
   void initState() {
@@ -164,16 +168,42 @@ class _ExerciseScreenState extends State<ExerciseScreen>
       setState(_refresh);
       final session = widget.recorder.session;
       if (session != null && session.status == SessionStatus.finished) {
-        await _openDetail(session);
+        int? newRegions;
+        if (widget.onDiscover != null) {
+          setState(() => _discovering = true);
+          try {
+            newRegions = (await widget.onDiscover!(session)).length;
+          } catch (_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('운동은 저장했어요. 탐험은 지도에서 지난 운동 추가로 다시 확인할 수 있어요.'),
+                ),
+              );
+            }
+          } finally {
+            if (mounted) setState(() => _discovering = false);
+          }
+        }
+        if (mounted) await _openDetail(session, newRegions: newRegions);
       }
     }
   }
 
-  Future<void> _openDetail(ExerciseSession session) async {
+  Future<void> _openDetail(ExerciseSession session, {int? newRegions}) async {
     final deleted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ExerciseDetailScreen(
           session: session,
+          newRegionCount: newRegions,
+          onExploration: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => AllTimeMapScreen(
+                repository: widget.recorder.repository,
+                highlightSessionId: session.id,
+              ),
+            ),
+          ),
           route: widget.recorder.repository.route(session.id),
           analysis: (force) => widget.recorder.repository.movementAnalysis(
             session,
@@ -192,127 +222,141 @@ class _ExerciseScreenState extends State<ExerciseScreen>
     builder: (context, _) {
       final recorder = widget.recorder;
       final session = recorder.live;
-      return Scaffold(
-        appBar: AppBar(title: Text(recorder.active ? '운동 기록 중' : 'GPS 운동')),
-        body: recorder.active && session != null
-            ? _RecordingView(
-                recorder: recorder,
-                finish: _finish,
-                map: _liveMap,
-                speed: _presentation.speedKmh,
-              )
-            : SafeArea(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 600),
-                    child: ListView(
-                      padding: const EdgeInsets.all(AppSpace.page),
-                      children: [
-                        if (recorder.issue case final issue?) ...[
-                          Text(issue.message),
-                          if (issue.appSettings)
-                            TextButton(
-                              onPressed: Geolocator.openAppSettings,
-                              child: const Text('앱 설정 열기'),
-                            ),
-                          if (issue.locationSettings)
-                            TextButton(
-                              onPressed: Geolocator.openLocationSettings,
-                              child: const Text('위치 설정 열기'),
-                            ),
+      return PopScope(
+        canPop: !_discovering,
+        child: Scaffold(
+          appBar: AppBar(title: Text(recorder.active ? '운동 기록 중' : 'GPS 운동')),
+          body: _discovering
+              ? const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 20),
+                      Text('새로운 길을 확인하고 있어요.'),
+                    ],
+                  ),
+                )
+              : recorder.active && session != null
+              ? _RecordingView(
+                  recorder: recorder,
+                  finish: _finish,
+                  map: _liveMap,
+                  speed: _presentation.speedKmh,
+                )
+              : SafeArea(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: ListView(
+                        padding: const EdgeInsets.all(AppSpace.page),
+                        children: [
+                          if (recorder.issue case final issue?) ...[
+                            Text(issue.message),
+                            if (issue.appSettings)
+                              TextButton(
+                                onPressed: Geolocator.openAppSettings,
+                                child: const Text('앱 설정 열기'),
+                              ),
+                            if (issue.locationSettings)
+                              TextButton(
+                                onPressed: Geolocator.openLocationSettings,
+                                child: const Text('위치 설정 열기'),
+                              ),
+                            const SizedBox(height: 16),
+                          ],
+                          Text(
+                            '오늘의 움직임',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          const Text('운동을 고르고 시작하세요. 화면을 꺼도 기록이 이어져요.'),
                           const SizedBox(height: 16),
-                        ],
-                        Text(
-                          '오늘의 움직임',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text('운동을 고르고 시작하세요. 화면을 꺼도 기록이 이어져요.'),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: ExerciseType.values
-                              .map(
-                                (type) => ChoiceChip(
-                                  label: Text(type.label),
-                                  selected: _type == type,
-                                  onSelected: recorder.busy
-                                      ? null
-                                      : (_) => setState(() {
-                                          _typeTouched = true;
-                                          _type = type;
-                                          HapticFeedback.selectionClick();
-                                        }),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          onPressed: recorder.busy ? null : _start,
-                          icon: const Icon(Icons.play_arrow),
-                          label: Text(recorder.busy ? '준비 중…' : '운동 시작'),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          '시작할 때 정확한 위치 권한이 필요해요. 예상 kcal는 최근 저장한 몸무게로 계산해요. GPS 운동은 오늘의 수동 기록과 별도로 저장돼요.',
-                        ),
-                        const SizedBox(height: 32),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        Text(
-                          '나의 운동 포트폴리오',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        FutureBuilder<List<ExerciseSession>>(
-                          future: _history,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return TextButton(
-                                onPressed: () => setState(_refresh),
-                                child: const Text('운동 이력 다시 불러오기'),
-                              );
-                            }
-                            if (!snapshot.hasData) {
-                              return const Padding(
-                                padding: EdgeInsets.all(AppSpace.page),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            if (snapshot.data!.isEmpty) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24),
-                                child: Text('완료한 운동이 여기에 표시돼요.'),
-                              );
-                            }
-                            return Column(
-                              children: [
-                                _PortfolioOverview(sessions: snapshot.data!),
-                                ...snapshot.data!.map(
-                                  (s) => ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(
-                                      '${dateKey(s.startedAt.toLocal())} · ${s.type.label}',
-                                    ),
-                                    subtitle: Text(
-                                      '${(s.distanceMeters / 1000).toStringAsFixed(2)} km · ${elapsedLabel(s.elapsedSeconds)}',
-                                    ),
-                                    trailing: const Icon(Icons.chevron_right),
-                                    onTap: () => _openDetail(s),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: ExerciseType.values
+                                .map(
+                                  (type) => ChoiceChip(
+                                    label: Text(type.label),
+                                    selected: _type == type,
+                                    onSelected: recorder.busy
+                                        ? null
+                                        : (_) => setState(() {
+                                            _typeTouched = true;
+                                            _type = type;
+                                            HapticFeedback.selectionClick();
+                                          }),
                                   ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
+                                )
+                                .toList(),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: recorder.busy ? null : _start,
+                            icon: const Icon(Icons.play_arrow),
+                            label: Text(recorder.busy ? '준비 중…' : '운동 시작'),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            '시작할 때 정확한 위치 권한이 필요해요. 예상 kcal는 최근 저장한 몸무게로 계산해요. GPS 운동은 오늘의 수동 기록과 별도로 저장돼요.',
+                          ),
+                          const SizedBox(height: 32),
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          Text(
+                            '나의 운동 포트폴리오',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          FutureBuilder<List<ExerciseSession>>(
+                            future: _history,
+                            builder: (context, snapshot) {
+                              if (snapshot.hasError) {
+                                return TextButton(
+                                  onPressed: () => setState(_refresh),
+                                  child: const Text('운동 이력 다시 불러오기'),
+                                );
+                              }
+                              if (!snapshot.hasData) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(AppSpace.page),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              }
+                              if (snapshot.data!.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24),
+                                  child: Text('완료한 운동이 여기에 표시돼요.'),
+                                );
+                              }
+                              return Column(
+                                children: [
+                                  _PortfolioOverview(sessions: snapshot.data!),
+                                  ...snapshot.data!.map(
+                                    (s) => ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        '${dateKey(s.startedAt.toLocal())} · ${s.type.label}',
+                                      ),
+                                      subtitle: Text(
+                                        '${(s.distanceMeters / 1000).toStringAsFixed(2)} km · ${elapsedLabel(s.elapsedSeconds)}',
+                                      ),
+                                      trailing: const Icon(Icons.chevron_right),
+                                      onTap: () => _openDetail(s),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+        ),
       );
     },
   );
@@ -392,7 +436,11 @@ class ExerciseDetailScreen extends StatefulWidget {
     required this.route,
     required this.onDelete,
     this.analysis,
+    this.newRegionCount,
+    this.onExploration,
   });
+  final int? newRegionCount;
+  final VoidCallback? onExploration;
   final ExerciseSession session;
   final Future<List<RoutePoint>> route;
   final Future<void> Function() onDelete;
@@ -413,7 +461,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
         builder: (context) => AlertDialog(
           title: const Text('운동 기록을 삭제할까요?'),
           content: const Text(
-            '이 운동과 관련된 경로·원본 GPS 데이터가 함께 삭제돼요. 삭제한 기록은 복구할 수 없어요.',
+            '이 운동과 관련된 경로·원본 GPS 데이터가 함께 삭제돼요. 이미 해금한 탐험 영역과 성장 보상은 유지돼요. 삭제한 기록은 복구할 수 없어요.',
           ),
           actions: [
             TextButton(
@@ -466,6 +514,19 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpace.page),
           children: [
+            if (widget.newRegionCount case final count?) ...[
+              Text(
+                count > 0 ? '새로운 지역 $count곳을 발견했어요' : '익숙한 길에 발자취를 더했어요',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpace.large),
+            ],
+            if (widget.onExploration != null)
+              TextButton.icon(
+                onPressed: widget.onExploration,
+                icon: const Icon(Icons.explore_outlined),
+                label: const Text('탐험 지도 보기'),
+              ),
             Text(
               '${dateKey(widget.session.startedAt.toLocal())} · ${widget.session.type.label}',
               style: Theme.of(context).textTheme.titleLarge,
