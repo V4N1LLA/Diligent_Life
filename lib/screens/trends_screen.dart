@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/activity_style.dart';
 import '../data/growth_repository.dart';
+import '../data/activity_calendar_repository.dart';
+import 'activity_calendar_screen.dart';
 
 import '../data/record_repository.dart';
 import '../data/exercise_repository.dart';
@@ -135,6 +137,31 @@ class _TrendsScreenState extends State<TrendsScreen> {
       Text('나의 포트폴리오', style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 8),
       const Text('지금까지의 움직임, 그리고 나의 변화.'),
+      if (widget.exercises != null) ...[
+        const SizedBox(height: AppSpace.large),
+        ActivitySurface(
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.calendar_month_outlined),
+            title: const Text('움직임 기록'),
+            subtitle: const Text('캘린더와 타임라인으로 돌아보기'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ActivityCalendarScreen(
+                    repository: ActivityCalendarRepository(
+                      widget.exercises!.database,
+                    ),
+                    exercises: widget.exercises!,
+                  ),
+                ),
+              );
+              if (mounted) setState(_reload);
+            },
+          ),
+        ),
+      ],
       const SizedBox(height: 20),
       Wrap(
         spacing: 8,

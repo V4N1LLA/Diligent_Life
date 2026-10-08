@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0+15 Activity Calendar / Timeline
+
+- Portfolio → 월간 걸음 intensity 캘린더, 운동·탐험·성취 indicator, 날짜별 운동/성장 기록과 20일씩 조회하는 Timeline.
+- 월간 걸음/운동 거리·횟수/탐험 합계와 데이터가 있는 이전 달 비교. 빈 날은 중립적이며 미래 활동 제외.
+- 위치·경로·체중 없는 4:5 월간 카드 preview·시스템 공유·갤러리 저장.
+- 기존 데이터의 읽기 전용 조회로 schema 5 / backup format 3, GPS·만보기·XP·캐릭터 규칙 유지. [날짜 정책과 검증](docs/activity-calendar.md).
+
 ## 1.2.0+15 Character / Profile Growth
 
 - Today Lv/Title → 프로필, 로컬 벡터 아바타와 색/배경/프레임/엠블럼, 주요 활동 네 가지, 잠금/해금 타이틀 장착.

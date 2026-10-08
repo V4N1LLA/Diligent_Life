@@ -20,6 +20,8 @@ v1.1 UI polish는 오늘 걸음 중심의 hierarchy, 성장 progress, 운동 상
 
 main baseline의 리뷰·검증 범위와 남은 S26 실사용 검증은 [v1.1 baseline 기록](docs/baseline-v1.1.md)을 참고하세요. 이후 신규 개발은 최신 main에서 별도 작업 브랜치를 생성하고 PR 리뷰·CI 통과 후 Squash Merge합니다.
 
+Portfolio의 **움직임 기록**에서 월간 캘린더·날짜별 운동과 성장 기록·날짜 단위 Timeline을 돌아보고, 위치 없는 월간 요약 카드를 공유/저장할 수 있습니다. 원본 조회만 사용하며 schema 5 / backup format 3과 GPS·만보기·XP 규칙은 유지합니다. 날짜/성능/검증 범위는 [Activity Calendar 기록](docs/activity-calendar.md)을 참고하세요.
+
 ## 주요 기능
 
 - 오늘의 몸무게·수동 운동 기록과 기록 알림
