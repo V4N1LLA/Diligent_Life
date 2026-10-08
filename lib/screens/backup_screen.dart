@@ -80,6 +80,7 @@ class _BackupScreenState extends State<BackupScreen> {
             child: Text(
               '백업 생성: ${prepared!.createdAt}\n일상 기록 ${counts['daily_records']}개\n운동 ${counts['exercise_sessions']}개\n경로 ${counts['route_points']}개 · 원본 GPS ${counts['raw_route_points']}개\n\n'
               '${counts.containsKey('daily_steps') ? '걸음·XP·타이틀·탐험도 백업의 기록으로 교체해요.' : '이전 버전 백업이므로 현재 걸음·XP·타이틀·탐험은 유지해요.'}\n'
+              '${counts.containsKey('character_progress') ? '외형·장착·보상 확인 상태도 복원해요.' : '이전 백업에는 프로필 외형이 없어요. 장착과 보상 확인 상태를 초기화하고 활동에 맞춰 다시 해금해요.'}\n'
               '현재 운동·몸무게·경로를 모두 교체해요. 병합하지 않으며 기존 기록은 남지 않아요. 먼저 현재 데이터를 내보내 주세요.\n알림 설정은 유지해요. 백업의 미완료 운동은 일시정지 상태로 복원돼요.',
             ),
           ),

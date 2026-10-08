@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/daily_record.dart';
+import '../models/character.dart';
+import '../models/growth.dart';
 import '../models/exercise_session.dart';
 import '../utils/dates.dart';
 import 'record_repository.dart';
@@ -22,6 +24,7 @@ const growthBackupTables = [
   'growth_profile',
   'exploration_events',
 ];
+const characterBackupTables = ['character_progress'];
 const _columns = {
   'daily_records': [
     'id',
@@ -81,6 +84,15 @@ const _columns = {
   ],
   'xp_ledger': ['id', 'rewardKey', 'xp', 'ruleVersion', 'earnedAt'],
   'growth_profile': ['id', 'titleId'],
+  'character_progress': [
+    'id',
+    'progressKey',
+    'kind',
+    'value',
+    'ruleVersion',
+    'createdAt',
+    'seen',
+  ],
   'exploration_events': [
     'id',
     'eventKey',
@@ -117,12 +129,19 @@ class BackupRepository {
       final hasGrowth = (await database.rawQuery(
         "SELECT name FROM sqlite_master WHERE name='daily_steps'",
       )).isNotEmpty;
-      final tables = [...backupTables, if (hasGrowth) ...growthBackupTables];
+      final hasCharacter = (await database.rawQuery(
+        "SELECT name FROM sqlite_master WHERE name='character_progress'",
+      )).isNotEmpty;
+      final tables = [
+        ...backupTables,
+        if (hasGrowth) ...growthBackupTables,
+        if (hasCharacter) ...characterBackupTables,
+      ];
       sink.writeln(
         jsonEncode({
           'format': 'diligent-life',
-          'version': hasGrowth ? 2 : 1,
-          'schema': hasGrowth ? 4 : 3,
+          'version': hasCharacter ? 3 : (hasGrowth ? 2 : 1),
+          'schema': hasCharacter ? 5 : (hasGrowth ? 4 : 3),
           'createdAt': DateTime.now().toUtc().toIso8601String(),
         }),
       );
@@ -174,7 +193,7 @@ class BackupRepository {
       staging = await databaseFactory.openDatabase(
         '${dir.path}/validated.db',
         options: OpenDatabaseOptions(
-          version: 4,
+          version: 5,
           singleInstance: false,
           onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
           onCreate: RecordRepository.createSchema,
@@ -201,11 +220,16 @@ class BackupRepository {
         if (!header) {
           if (object['format'] != 'diligent-life' ||
               !((object['version'] == 1 && object['schema'] == 3) ||
-                  (object['version'] == 2 && object['schema'] == 4))) {
+                  (object['version'] == 2 && object['schema'] == 4) ||
+                  (object['version'] == 3 && object['schema'] == 5))) {
             throw const FormatException('지원하지 않는 백업 버전이에요.');
           }
-          if (object['version'] == 2) {
-            tables = [...backupTables, ...growthBackupTables];
+          if (object['version'] == 2 || object['version'] == 3) {
+            tables = [
+              ...backupTables,
+              ...growthBackupTables,
+              if (object['version'] == 3) ...characterBackupTables,
+            ];
             counts = {for (final t in tables) t: 0};
           }
           createdAt = object['createdAt'] as String;
@@ -268,6 +292,14 @@ class BackupRepository {
         limit: 1,
       );
       if (active.isNotEmpty) throw StateError('진행 중인 운동을 종료한 뒤 가져와 주세요.');
+      // Old backups have no character state: drop stale selections/inbox and
+      // deterministically derive cosmetics from the restored growth data later.
+      if (!tables.contains('character_progress') &&
+          (await txn.rawQuery(
+            "SELECT name FROM sqlite_master WHERE name='character_progress'",
+          )).isNotEmpty) {
+        await txn.delete('character_progress');
+      }
       for (final table in ['portfolio_analysis', 'exploration_scans']) {
         final cache = await txn.rawQuery(
           "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
@@ -358,7 +390,8 @@ class BackupRepository {
       }
     }
 
-    if (growthBackupTables.contains(table)) {
+    if (growthBackupTables.contains(table) ||
+        characterBackupTables.contains(table)) {
       void integer(String key, {int min = 0, int max = 2147483647}) {
         if (row[key] is! int ||
             (row[key] as int) < min ||
@@ -375,7 +408,44 @@ class BackupRepository {
         }
       }
 
-      if (table == 'daily_steps') {
+      if (table == 'character_progress') {
+        stable('progressKey');
+        integer('ruleVersion', min: 1, max: 1);
+        integer('seen', max: 1);
+        timestamp('createdAt');
+        if (!['unlock', 'equip', 'reward'].contains(row['kind']) ||
+            row['value'] is! String ||
+            (row['value'] as String).length > 200) {
+          throw const FormatException('잘못된 캐릭터 기록');
+        }
+        final key = row['progressKey'] as String;
+        final value = row['value'] as String;
+        final cosmetic = cosmetics.where((c) => c.id == value).firstOrNull;
+        final level = key.startsWith('reward:level:')
+            ? int.tryParse(key.substring('reward:level:'.length))
+            : null;
+        final valid = switch (row['kind']) {
+          'unlock' => cosmetic != null && key == 'unlock:$value',
+          'equip' => cosmetic != null && key == 'equip:${cosmetic.slot.name}',
+          'reward' =>
+            (level != null &&
+                    level >= 2 &&
+                    level <= 1000000 &&
+                    value == 'Lv. $level 달성') ||
+                cosmetics.any(
+                  (c) =>
+                      c.requirement != '기본' &&
+                      key == 'reward:cosmetic:${c.id}' &&
+                      value == '새 외형 · ${c.name}',
+                ) ||
+                [...achievements([], 0), ...explorationAchievements(0)].any(
+                  (a) =>
+                      key == 'reward:${a.id}' && value == '업적 달성 · ${a.label}',
+                ),
+          _ => false,
+        };
+        if (!valid) throw const FormatException('알 수 없는 외형·보상 기록');
+      } else if (table == 'daily_steps') {
         final date = row['date'];
         if (date is! String ||
             DateTime.tryParse(date) == null ||
