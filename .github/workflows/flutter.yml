@@ -21,9 +21,6 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze
       - run: flutter test
-      - name: Native step and notification policy checks
-        working-directory: android
-        run: bash gradlew :app:stepPolicyChecks --console=plain
       # Ephemeral CI identity only; these artifacts are never production releases.
       - name: Configure disposable CI signing
         shell: bash
@@ -37,4 +34,8 @@ jobs:
           echo "DILIGENT_SIGNING_KEY_ALIAS=ci-validation" >> "$GITHUB_ENV"
           echo "DILIGENT_SIGNING_KEY_PASSWORD=$ci_password" >> "$GITHUB_ENV"
       - run: flutter build apk --release
+      # Flutter's Android build bootstraps the ignored Gradle wrapper/local SDK paths.
+      - name: Native step and notification policy checks
+        working-directory: android
+        run: bash gradlew :app:stepPolicyChecks --console=plain
       - run: flutter build appbundle --release
