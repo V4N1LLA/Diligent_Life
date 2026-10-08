@@ -166,7 +166,7 @@ class ActivityNotificationBridge(private val activity: Activity, private val cha
         val uri = intent?.data ?: return
         if (intent.action != Intent.ACTION_VIEW || uri.scheme != "diligent-life" || uri.host != "activity") return
         val action = uri.lastPathSegment ?: return
-        if (action !in setOf("today", "exercise", "pause", "resume")) return
+        if (action !in setOf("today", "exercise", "profile", "growth", "pause", "resume")) return
         if (pending.size >= 16) pending.removeFirst()
         pending.addLast(mapOf("action" to action, "token" to (uri.getQueryParameter("token") ?: "")))
         channel.invokeMethod("pending", null)
