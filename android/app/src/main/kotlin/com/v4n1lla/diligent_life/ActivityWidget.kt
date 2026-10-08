@@ -63,12 +63,7 @@ object ActivityWidget {
                 var available = file.exists()
                 if (available) {
                     try {
-                        SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
-                            db.execSQL("PRAGMA busy_timeout=500")
-                            steps = db.rawQuery("SELECT steps FROM daily_steps WHERE date=?", arrayOf(date.toString())).use {
-                                if (it.moveToFirst()) it.getLong(0).coerceAtLeast(0) else 0
-                            }
-                        }
+                        steps = readSteps(c, date.toString())
                         if (cache.getString("date", null) != date.toString() || cache.getLong("steps", -1) != steps) {
                             cache.edit().putString("date", date.toString()).putLong("steps", steps).apply()
                         }
@@ -108,6 +103,15 @@ object ActivityWidget {
             finally { finished() }
         }
     }
+
+    internal fun readSteps(c: Context, date: String): Long =
+        SQLiteDatabase.openDatabase(c.getDatabasePath("diligent_life.db").path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            // busy_timeout returns a row. execSQL rejects result-producing PRAGMAs.
+            db.rawQuery("PRAGMA busy_timeout=500", null).use { it.moveToFirst() }
+            db.rawQuery("SELECT steps FROM daily_steps WHERE date=?", arrayOf(date)).use {
+                if (it.moveToFirst()) it.getLong(0).coerceAtLeast(0) else 0
+            }
+        }
 
     internal fun views(c: Context, state: WidgetState, wide: Boolean, height: Int = 180): RemoteViews {
         val n = NumberFormat.getIntegerInstance(java.util.Locale.KOREA)

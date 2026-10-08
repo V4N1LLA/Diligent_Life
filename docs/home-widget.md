@@ -32,7 +32,16 @@ Flutter: 성장 snapshot·장착 타이틀 전달, widget 실패 시 transaction
 
 Native policy: 중복·30초 throttle·목표 달성·자정 reset·성장/목표 변경·resize·큰 글꼴 fallback·큰 숫자 경계.
 
-Android host instrumentation: compact/wide, Light/Dark, font 1/1.5/2, 숫자/48dp 버튼, 여러 widget instance, cached growth, 자정 fixture, immutable intent, 삭제 정리. Diligent_API36의 launcher 및 lifecycle 검증 결과는 PR에 기록한다.
+Android host instrumentation: compact/wide, Light/Dark, font 1/1.5/2, 숫자/48dp 버튼, 여러 widget instance, cached growth, 자정 fixture, immutable intent, 삭제 정리. Diligent_API36에서 110/140/180dp 높이까지 확대한 host 검사 126개 통과. 실제 DB의 당일 값과 host 숫자가 일치하며 없는 날짜는 0인지도 검사한다. 런처가 처음 2×3/3×3으로 분류한 최소 크기를 수정해 2×2/4×2로 등록되는 것을 확인했다. 결과를 반환하는 PRAGMA는 execSQL이 아닌 rawQuery로 실행하도록 수정했다.
+
+로컬 검증: format/analyze 통과, Flutter 269개 통과·기존 opt-in skip 4개, native step/notification/widget 정책 32개 통과. framework 검사 실행은 앱을 한 번 실행해 schema 5 DB를 만든 에뮬레이터에서 다음과 같다. 테스트는 사용자 DB에 쓰지 않는다.
+
+```sh
+adb -s emulator-5554 shell appwidget grantbind --package com.v4n1lla.diligent_life --user 0
+adb -s emulator-5554 shell am instrument -w -e suite widget com.v4n1lla.diligent_life.test/com.v4n1lla.diligent_life.NotificationChecks
+```
+
+런처·시스템 theme·action·일반 process kill·재부팅 검증 결과는 PR에 기록한다.
 
 S26 추가 검증: Samsung One UI 크기/색/잘림, 실제 step flush 반영, 장시간 배터리. 에뮬레이터 결과로 실제 센서/배터리 품질을 대체하지 않는다.
 

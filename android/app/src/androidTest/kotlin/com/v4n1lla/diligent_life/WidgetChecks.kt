@@ -45,6 +45,10 @@ fun Instrumentation.runWidgetChecks() {
                 verify(steps.layout != null && steps.layout.getLineBottom(0) <= steps.height)
             }
         }
+        val today = java.time.LocalDate.now().toString()
+        val expectedSteps = java.text.NumberFormat.getIntegerInstance(java.util.Locale.KOREA)
+            .format(ActivityWidget.readSteps(c, today))
+        verify(ActivityWidget.readSteps(c, "2099-01-01") == 0L)
         runOnMainSync { host.startListening() }
         for (provider in listOf(CompactActivityWidget::class.java, WideActivityWidget::class.java, CompactActivityWidget::class.java)) {
             val id = host.allocateAppWidgetId()
@@ -64,6 +68,7 @@ fun Instrumentation.runWidgetChecks() {
         waitForIdleSync()
         runOnMainSync {
             verify(views.all { it.findViewById<TextView>(R.id.widget_steps) != null })
+            verify(views[0].findViewById<TextView>(R.id.widget_steps).text.toString() == expectedSteps)
             verify(views.map { it.findViewById<TextView>(R.id.widget_steps).text.toString() }.toSet().size == 1)
             verify(views[1].findViewById<TextView>(R.id.widget_level).text.toString().contains("Lv.12"))
         }
