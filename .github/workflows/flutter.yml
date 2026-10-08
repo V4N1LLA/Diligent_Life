@@ -21,6 +21,9 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze
       - run: flutter test
+      - name: Native step and notification policy checks
+        working-directory: android
+        run: bash gradlew :app:stepPolicyChecks --console=plain
       # Ephemeral CI identity only; these artifacts are never production releases.
       - name: Configure disposable CI signing
         shell: bash

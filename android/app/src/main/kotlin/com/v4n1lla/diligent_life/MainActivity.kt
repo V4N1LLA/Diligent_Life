@@ -10,11 +10,17 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private var backupResult: MethodChannel.Result? = null
     private var exportPath: String? = null
+    private var activityNotices: ActivityNotificationBridge? = null
     private val steps by lazy { StepBridge(this) }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val notices = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "diligent_life/activity_notifications")
+        activityNotices = ActivityNotificationBridge(this, notices).also { bridge ->
+            notices.setMethodCallHandler { call, result -> bridge.handle(call.method, call.arguments, result) }
+            bridge.accept(intent)
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "diligent_life/steps")
-            .setMethodCallHandler { call, result -> steps.handle(call.method,result) }
+            .setMethodCallHandler { call, result -> steps.handle(call.method,result,call.argument<Number>("goal")?.toInt()) }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "diligent_life/gallery")
             .setMethodCallHandler { call, result ->
                 if(call.method == "save") GalleryBridge.save(this,call,result) else result.notImplemented()
@@ -47,6 +53,12 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        activityNotices?.accept(intent)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

@@ -22,6 +22,25 @@ class StepTrackingService : Service(), SensorEventListener2 {
     private var scheduled = false
     private val flushTask = Runnable { scheduled = false; persist() }
     private var boot = 0
+    private var datesRegistered = false
+    private val dateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { refreshNotice() }
+    }
+    private fun updateNotice(force: Boolean = false) {
+        val database = db ?: return
+        if (destroyed || !running) return
+        try {
+            val date = java.time.LocalDate.now().toString()
+            val count = database.rawQuery("SELECT steps FROM daily_steps WHERE date=?", arrayOf(date)).use {
+                if (it.moveToFirst()) it.getLong(0) else 0L
+            }
+            val goal = getSharedPreferences("daily_steps", MODE_PRIVATE).getInt("goal", 5000).coerceAtLeast(1)
+            ActivityNotifications.steps(applicationContext, StepNotice(date, count, goal), force)
+        } catch (_: Exception) { /* Notification failure never stops sensor storage. */ }
+    }
+    fun refreshNotice() {
+        if (::handler.isInitialized) handler.post { updateNotice(true) }
+    }
     private var suspended = false
     @Volatile private var destroyed = false
     private val flushResults = mutableListOf<(Boolean) -> Unit>()
@@ -29,20 +48,21 @@ class StepTrackingService : Service(), SensorEventListener2 {
 
     override fun onCreate() {
         super.onCreate()
-        val manager = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("daily_steps", "일상 걸음 기록", NotificationManager.IMPORTANCE_LOW))
-        val intent = PendingIntent.getActivity(this, 140, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "daily_steps") else Notification.Builder(this)
-        val notification = builder
-            .setSmallIcon(R.drawable.ic_notification).setContentTitle("Diligent Life 만보기")
-            .setContentText("일상 걸음을 기록하고 있어요 · 설정에서 끌 수 있어요")
-            .setContentIntent(intent).setOngoing(true).setOnlyAlertOnce(true).build()
+        val notification = ActivityNotifications.stepNotification(this)
         try {
             if (Build.VERSION.SDK_INT >= 34) startForeground(140, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
             else startForeground(140, notification)
             worker = HandlerThread("DiligentSteps").apply { start() }
             handler = Handler(worker.looper)
             sensors = getSystemService(SensorManager::class.java)
+            val dates = IntentFilter().apply {
+                addAction(Intent.ACTION_DATE_CHANGED)
+                addAction(Intent.ACTION_TIME_CHANGED)
+                addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            }
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(dateReceiver, dates, Context.RECEIVER_NOT_EXPORTED)
+            else registerReceiver(dateReceiver, dates)
+            datesRegistered = true
             val sensor = sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
             if (sensor == null || !allowed(this)) { stopSelf(); return }
             boot = Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT, 0)
@@ -57,6 +77,7 @@ class StepTrackingService : Service(), SensorEventListener2 {
                     }
                     check(sensors.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL, 30_000_000, handler))
                     running = !destroyed
+                    updateNotice(true)
                     if (destroyed) sensors.unregisterListener(this) else error = null
                 } catch (e: Exception) { error = "sensor_storage"; stopSelf() }
             }
@@ -108,6 +129,7 @@ class StepTrackingService : Service(), SensorEventListener2 {
             database.setTransactionSuccessful()
             database.endTransaction()
             pending.clear()
+            updateNotice()
             val prefs = getSharedPreferences("daily_steps",MODE_PRIVATE)
             if (prefs.getBoolean("enabled",false)) prefs.edit().putBoolean("rebase",false).apply()
         } catch (e: Exception) { error = "storage_failed" }
@@ -117,6 +139,8 @@ class StepTrackingService : Service(), SensorEventListener2 {
     override fun onDestroy() {
         destroyed = true
         running = false
+        ActivityNotifications.stoppedSteps()
+        if (datesRegistered) { unregisterReceiver(dateReceiver); datesRegistered = false }
         if (::sensors.isInitialized) sensors.unregisterListener(this)
         if (::handler.isInitialized) {
             handler.removeCallbacks(flushTask)

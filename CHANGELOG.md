@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0+15 Activity Notifications
+
+- 만보기 알림에 오늘 걸음·목표·달성 상태와 오늘 보기/운동 시작 진입을 표시합니다.
+- 운동 알림에 거리·시간·평균 페이스와 일시정지/재개를 제공하며 종료는 기존 앱 확인 흐름을 사용합니다.
+- 세션·상태별 제어 토큰, 걸음 30초/운동 15초 갱신 합치기. health/location FGS와 GPS·만보기·XP·schema/backup 정책 유지.
+- SDK 36에서는 표준 ongoing 알림을 사용합니다. Android 16 Live Update 및 실기기 검증 제한은 [상세 기록](docs/activity-notifications.md)에 있습니다.
+
 ## 1.2.0+15 Activity Calendar / Timeline
 
 - Portfolio → 월간 걸음 intensity 캘린더, 운동·탐험·성취 indicator, 날짜별 운동/성장 기록과 20일씩 조회하는 Timeline.
