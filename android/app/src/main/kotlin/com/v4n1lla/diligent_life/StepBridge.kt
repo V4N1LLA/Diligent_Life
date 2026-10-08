@@ -26,8 +26,14 @@ class StepBridge(private val activity: Activity) {
             result.success(null)
         } catch (e: Exception) { result.error("steps", "Step service could not start", null) }
     }
-    fun handle(method: String, result: MethodChannel.Result) {
+    fun handle(method: String, result: MethodChannel.Result, goal: Int? = null) {
         when(method) {
+            "goal" -> {
+                if (goal == null || goal !in 1..1000000) { result.error("goal", "Invalid goal", null); return }
+                prefs.edit().putInt("goal", goal).apply()
+                StepTrackingService.instance?.refreshNotice()
+                result.success(null)
+            }
             "status" -> result.success(status())
             "settings" -> { activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${activity.packageName}"))); result.success(null) }
             "restore" -> {

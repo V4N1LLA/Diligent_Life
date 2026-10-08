@@ -11,6 +11,7 @@ import 'data/backup_repository.dart';
 import 'screens/backup_screen.dart';
 import 'data/exercise_repository.dart';
 import 'services/exercise_recorder.dart';
+import 'services/activity_notifications.dart';
 import 'screens/exercise_screen.dart';
 import 'screens/today_home.dart';
 import 'screens/trends_screen.dart';
@@ -150,19 +151,27 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _index = 0, _revision = 0, _importRevision = 0;
   bool _leaving = false;
-  bool _exerciseActive = false;
+  bool _exerciseActive = false, _exerciseOpen = false;
+  ActivityNotificationController? _activityNotifications;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.recorder?.addListener(_recordingChanged);
     _exerciseActive = widget.recorder?.active ?? false;
+    if (widget.recorder != null) {
+      _activityNotifications = ActivityNotificationController(
+        widget.recorder!,
+        onNavigate: _notificationDestination,
+      )..start();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.recorder?.removeListener(_recordingChanged);
+    _activityNotifications?.dispose();
     super.dispose();
   }
 
@@ -176,11 +185,29 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _notificationDestination(String destination) async {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    if (destination == 'today') {
+      navigator.popUntil((route) => route.isFirst);
+      setState(() => _index = 0);
+    } else if (_exerciseOpen) {
+      navigator.popUntil(
+        (route) => route.settings.name == 'exercise' || route.isFirst,
+      );
+    } else {
+      navigator.popUntil((route) => route.isFirst);
+      unawaited(_openExercise());
+    }
+  }
+
   Future<void> _openExercise() async {
-    if (widget.recorder == null) return;
+    if (widget.recorder == null || _exerciseOpen) return;
+    _exerciseOpen = true;
     FocusManager.instance.primaryFocus?.unfocus();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'exercise'),
         builder: (_) => ExerciseScreen(
           recorder: widget.recorder!,
           records: widget.repository,
@@ -194,6 +221,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         ),
       ),
     );
+    _exerciseOpen = false;
     if (mounted) setState(() => _revision++);
   }
 
@@ -220,6 +248,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(widget.reminders.restore());
+      _activityNotifications?.refresh();
       setState(() => _revision++);
     }
   }

@@ -72,8 +72,9 @@ class ExerciseLocation {
                 intervalDuration: const Duration(seconds: 2),
                 foregroundNotificationConfig:
                     const ForegroundNotificationConfig(
-                      notificationTitle: 'Diligent Life · 운동 기록 중',
-                      notificationText: '시간과 경로를 기록하고 있어요. 눌러서 운동을 관리하세요.',
+                      notificationTitle: '운동 기록 중',
+                      notificationChannelName: '운동 위치 기록',
+                      notificationText: '운동 화면에서 거리와 시간을 확인하세요.',
                       enableWakeLock: true,
                       setOngoing: true,
                     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class StepStatus {
   const StepStatus({
@@ -51,8 +52,21 @@ class StepService {
     }
   }
 
+  Future<void> syncGoal(int goal) async {
+    try {
+      await _channel.invokeMethod<void>('goal', {'goal': goal});
+    } on MissingPluginException {
+      /* Non-Android */
+    } on PlatformException {
+      /* Goal remains stored in the app. */
+    }
+  }
+
   Future<void> restore() async {
     try {
+      await syncGoal(
+        (await SharedPreferences.getInstance()).getInt('stepGoal') ?? 5000,
+      );
       await _channel.invokeMethod<void>('restore');
     } on MissingPluginException {
       /* Non-Android */

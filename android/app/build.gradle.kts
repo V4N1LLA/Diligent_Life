@@ -46,6 +46,7 @@ android {
 
     defaultConfig {
         applicationId = "com.v4n1lla.diligent_life"
+        testInstrumentationRunner = "com.v4n1lla.diligent_life.NotificationChecks"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

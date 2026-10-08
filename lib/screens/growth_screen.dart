@@ -393,6 +393,7 @@ class _GrowthScreenState extends State<GrowthScreen>
                           'stepGoal',
                           value,
                         );
+                        await StepService().syncGoal(value);
                         if (mounted) setState(() => _goal = value);
                       }
                     },

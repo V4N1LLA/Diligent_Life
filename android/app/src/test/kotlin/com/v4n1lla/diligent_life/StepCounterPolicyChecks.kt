@@ -17,4 +17,5 @@ fun main() {
     check(reset.delta == 0L && reset.coverage == "reset")
     check(!StepCounterPolicy.decide(first, first.copy(counter=-1,sample=200)).accept)
     println("9 step policy checks passed: initial baseline, duplicate, stale, delta, restart, midnight, reboot, reset, invalid")
+    activityNotificationPolicyChecks()
 }
