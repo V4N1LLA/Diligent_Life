@@ -9,8 +9,14 @@ import android.os.Bundle
 // Framework-only instrumentation: synthetic presentation fixtures, no sensors,
 // no DB writes and no extra dependency. This does NOT validate a health FGS.
 class NotificationChecks : Instrumentation() {
-    override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); start() }
+    private var widgets = false
+    override fun onCreate(arguments: Bundle?) {
+        super.onCreate(arguments)
+        widgets = arguments?.getString("suite") == "widget"
+        start()
+    }
     override fun onStart() {
+        if (widgets) { runWidgetChecks(); return }
         val c = targetContext
         val manager = c.getSystemService(NotificationManager::class.java)
         fun barrier() { waitForIdleSync(); Thread.sleep(1000) }
