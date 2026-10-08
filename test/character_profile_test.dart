@@ -16,6 +16,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'record_repository_test.dart' show record;
+
 class LoadedCharacter extends CharacterRepository {
   LoadedCharacter(super.database, this.data);
   final CharacterSnapshot data;
@@ -170,8 +172,15 @@ void main() {
             onCreate: RecordRepository.createSchema,
           ),
         );
+        await RecordRepository(db).save(record('2026-10-07', weight: 71));
         if (old == 4) await seed(db);
-        final before = old == 4 ? await db.query('exercise_sessions') : [];
+        final tableNames = (await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+        )).map((row) => row['name'] as String).toList();
+        final before = {
+          for (final table in tableNames)
+            table: await db.query(table, orderBy: 'id'),
+        };
         await db.close();
         db = await databaseFactory.openDatabase(
           path,
@@ -183,7 +192,13 @@ void main() {
         );
         addTearDown(db.close);
         expect(await db.getVersion(), 5);
-        expect(await db.query('exercise_sessions'), before);
+        for (final table in tableNames) {
+          expect(
+            await db.query(table, orderBy: 'id'),
+            before[table],
+            reason: table,
+          );
+        }
         expect(await db.query('character_progress'), isEmpty);
         await CharacterRepository(db).refresh(now);
       },
