@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/growth_repository.dart';
+import '../data/character_repository.dart';
 import '../models/growth.dart';
 import '../services/step_service.dart';
 import '../services/achievement_share.dart';
@@ -11,6 +12,7 @@ import '../utils/dates.dart';
 import '../theme/app_theme.dart';
 import '../widgets/activity_style.dart';
 import 'portfolio_share_screen.dart';
+import 'profile_screen.dart';
 
 class MovementHomeSummary extends StatefulWidget {
   const MovementHomeSummary({
@@ -130,7 +132,7 @@ class _MovementHomeSummaryState extends State<MovementHomeSummary>
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LevelProgress(data: data, onTap: () => _open(context)),
+          LevelProgress(data: data, onTap: () => _openProfile(context)),
           const SizedBox(height: AppSpace.section),
           Semantics(
             button: true,
@@ -192,6 +194,17 @@ class _MovementHomeSummaryState extends State<MovementHomeSummary>
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => GrowthScreen(repository: widget.repository),
+      ),
+    );
+    if (mounted) setState(_load);
+  }
+
+  Future<void> _openProfile(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(
+          repository: CharacterRepository(widget.repository.database),
+        ),
       ),
     );
     if (mounted) setState(_load);

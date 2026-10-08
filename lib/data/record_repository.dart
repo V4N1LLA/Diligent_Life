@@ -5,6 +5,7 @@ import '../models/daily_record.dart';
 import '../utils/dates.dart';
 import 'exercise_repository.dart';
 import 'growth_repository.dart';
+import 'character_repository.dart';
 
 class RecordRepository {
   RecordRepository(this.database);
@@ -13,7 +14,7 @@ class RecordRepository {
   static Future<RecordRepository> open() async => RecordRepository(
     await openDatabase(
       p.join(await getDatabasesPath(), 'diligent_life.db'),
-      version: 4,
+      version: 5,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: createSchema,
       onUpgrade: upgradeSchema,
@@ -34,6 +35,9 @@ class RecordRepository {
     if (oldVersion < 4 && newVersion >= 4) {
       await GrowthRepository.createSchema(db);
     }
+    if (oldVersion < 5 && newVersion >= 5) {
+      await CharacterRepository.createSchema(db);
+    }
   }
 
   static Future<void> createSchema(Database db, int version) async {
@@ -52,6 +56,7 @@ class RecordRepository {
       await ExerciseRepository.createSchema(db, includeRaw: version >= 3);
     }
     if (version >= 4) await GrowthRepository.createSchema(db);
+    if (version >= 5) await CharacterRepository.createSchema(db);
   }
 
   Future<DailyRecord?> forDate(String date) async {

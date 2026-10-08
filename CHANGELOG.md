@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0+15 Character / Profile Growth
+
+- Today Lv/Title → 프로필, 로컬 벡터 아바타와 색/배경/프레임/엠블럼, 주요 활동 네 가지, 잠금/해금 타이틀 장착.
+- Lv/누적 거리/탐험/업적 기반 cosmetic 해금과 10개씩 확인하는 보상함. 안정적인 ID·중복 방지·확인 상태 보존, 추가 XP와 자동 팝업 없음.
+- 위치·체중 없는 1:1 프로필 카드 preview·시스템 공유·갤러리 저장. Light/Dark·작은 화면·큰 글꼴 대응.
+- schema 5에 프로필 테이블 하나 추가, backup format 3 및 이전 format 1·2 읽기 지원. GPS/만보기/탐험/XP 규칙과 background 동작 변경 없음. [상세 기록](docs/character-profile.md).
+
 ## 1.2.0+15
 
 - 운동 종료 후 신뢰할 수 있는 GPS 이동으로 지도 영역을 해금. 약 244m(서울) 셀, 60m 이동·50m 순변위·20초 이상 확인하며 원본과 기존 분석 결과는 유지.
