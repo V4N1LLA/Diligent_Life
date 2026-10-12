@@ -12,6 +12,7 @@ import 'screens/backup_screen.dart';
 import 'data/exercise_repository.dart';
 import 'services/exercise_recorder.dart';
 import 'services/activity_notifications.dart';
+import 'services/home_widget.dart';
 import 'screens/exercise_screen.dart';
 import 'screens/today_home.dart';
 import 'screens/trends_screen.dart';
@@ -23,6 +24,8 @@ import 'services/step_service.dart';
 import 'data/growth_repository.dart';
 import 'data/exploration_repository.dart';
 import 'screens/growth_screen.dart';
+import 'screens/profile_screen.dart';
+import 'data/character_repository.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -191,6 +194,26 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (destination == 'today') {
       navigator.popUntil((route) => route.isFirst);
       setState(() => _index = 0);
+    } else if (destination == 'profile' || destination == 'growth') {
+      if (widget.growth == null) return;
+      navigator.popUntil((route) => route.isFirst);
+      unawaited(
+        navigator
+            .push(
+              MaterialPageRoute<void>(
+                builder: (_) => destination == 'profile'
+                    ? ProfileScreen(
+                        repository: CharacterRepository(
+                          widget.repository.database,
+                        ),
+                      )
+                    : GrowthScreen(repository: widget.growth!),
+              ),
+            )
+            .then((_) {
+              if (mounted) setState(() => _revision++);
+            }),
+      );
     } else if (_exerciseOpen) {
       navigator.popUntil(
         (route) => route.settings.name == 'exercise' || route.isFirst,
@@ -249,6 +272,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       unawaited(widget.reminders.restore());
       _activityNotifications?.refresh();
+      unawaited(HomeWidget.refresh());
       setState(() => _revision++);
     }
   }
@@ -333,6 +357,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         canImport: () => !(widget.recorder?.active ?? false),
                         onImported: () async {
                           await widget.recorder?.restore();
+                          unawaited(HomeWidget.refresh());
                           if (mounted) {
                             setState(() {
                               _revision++;

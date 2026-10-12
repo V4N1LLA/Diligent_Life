@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:sqflite/sqflite.dart';
 
 import '../models/growth.dart';
+import '../services/home_widget.dart';
 import '../models/exploration.dart';
 import '../utils/dates.dart';
 
@@ -35,7 +36,7 @@ class GrowthRepository {
   }
 
   Future<GrowthSnapshot> refresh(DateTime now) async {
-    return database.transaction((txn) async {
+    final snapshot = await database.transaction((txn) async {
       final today = dateKey(now);
       final days = <String, ActivityDay>{};
       for (final r in await txn.query(
@@ -184,6 +185,8 @@ class GrowthRepository {
         titleId: profile.firstOrNull?['titleId'] as String?,
       );
     });
+    await HomeWidget.publish(snapshot);
+    return snapshot;
   }
 
   Future<void> equip(String? id, GrowthSnapshot snapshot) async {
@@ -194,5 +197,6 @@ class GrowthRepository {
       'id': 1,
       'titleId': id,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
+    await HomeWidget.publish(snapshot, title: titles[id] ?? '나의 첫 페이지');
   }
 }

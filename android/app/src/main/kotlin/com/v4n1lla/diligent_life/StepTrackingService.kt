@@ -36,6 +36,7 @@ class StepTrackingService : Service(), SensorEventListener2 {
             }
             val goal = getSharedPreferences("daily_steps", MODE_PRIVATE).getInt("goal", 5000).coerceAtLeast(1)
             ActivityNotifications.steps(applicationContext, StepNotice(date, count, goal), force)
+            ActivityWidget.request(applicationContext, force)
         } catch (_: Exception) { /* Notification failure never stops sensor storage. */ }
     }
     fun refreshNotice() {

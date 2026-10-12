@@ -14,6 +14,16 @@ class MainActivity : FlutterActivity() {
     private val steps by lazy { StepBridge(this) }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "diligent_life/home_widget")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "publish") {
+                    ActivityWidget.publish(this, call.arguments as? Map<*, *> ?: emptyMap<String, Any>())
+                    result.success(null)
+                } else if (call.method == "refresh") {
+                    ActivityWidget.request(this, true)
+                    result.success(null)
+                } else result.notImplemented()
+            }
         val notices = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "diligent_life/activity_notifications")
         activityNotices = ActivityNotificationBridge(this, notices).also { bridge ->
             notices.setMethodCallHandler { call, result -> bridge.handle(call.method, call.arguments, result) }

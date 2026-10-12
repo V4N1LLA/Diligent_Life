@@ -179,7 +179,9 @@ void main() {
       expect(destinations, isEmpty);
       await c.handleAction({'action': 'exercise', 'token': ''});
       await c.handleAction({'action': 'today', 'token': ''});
-      expect(destinations, ['exercise', 'today']);
+      await c.handleAction({'action': 'profile', 'token': ''});
+      await c.handleAction({'action': 'growth', 'token': ''});
+      expect(destinations, ['exercise', 'today', 'profile', 'growth']);
       expect(r.resumes, 1); // Exercise entry never starts recording.
       c.dispose();
       final restored = ActivityNotificationController(

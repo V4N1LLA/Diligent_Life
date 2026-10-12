@@ -145,8 +145,8 @@ class ActivityNotificationController {
     final name = action['action'], token = action['token'];
     // A restored process and every state transition mint a new generation.
     if (token != '' && (token != _generation || !recorder.active)) return;
-    if (name == 'today' && token == '') {
-      await onNavigate('today');
+    if (['today', 'profile', 'growth'].contains(name) && token == '') {
+      await onNavigate(name as String);
       return;
     }
     if (name == 'exercise') {

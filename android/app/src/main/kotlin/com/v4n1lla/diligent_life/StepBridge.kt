@@ -32,6 +32,7 @@ class StepBridge(private val activity: Activity) {
                 if (goal == null || goal !in 1..1000000) { result.error("goal", "Invalid goal", null); return }
                 prefs.edit().putInt("goal", goal).apply()
                 StepTrackingService.instance?.refreshNotice()
+                ActivityWidget.request(activity, true)
                 result.success(null)
             }
             "status" -> result.success(status())
@@ -49,6 +50,7 @@ class StepBridge(private val activity: Activity) {
             "disable" -> {
                 prefs.edit().putBoolean("enabled",false).putBoolean("rebase",true).apply()
                 activity.stopService(Intent(activity,StepTrackingService::class.java))
+                ActivityWidget.request(activity, true)
                 result.success(null)
             }
             "flush" -> StepTrackingService.flush { ok -> if (ok) result.success(null) else result.error("storage", "Could not store steps", null) }

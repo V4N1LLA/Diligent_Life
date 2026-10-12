@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0+15 Home Widget
+
+- Android 오늘 걸음 2×2 / 활동과 성장 4×2 RemoteViews 위젯. 목표 progress, Level/Title, 오늘 걸음 퀘스트와 화면별 진입 제공.
+- 기존 30초 step flush를 활용하고 동일 표시 생략. 별도 센서/GPS/서비스·주기 polling 없음. 자정은 위젯이 있을 때만 비 wakeup 단발 예약.
+- 읽기 전용 당일 조회와 재생성 가능한 외형 cache만 사용. schema 5 / backup format 3 및 XP/배터리 정책 유지. [검증과 제한](docs/home-widget.md).
+
 ## 1.2.0+15 Activity Notifications
 
 - 만보기 알림에 오늘 걸음·목표·달성 상태와 오늘 보기/운동 시작 진입을 표시합니다.
